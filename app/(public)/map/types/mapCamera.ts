@@ -21,7 +21,9 @@ export type MapCameraEvent =
   | "moveend"
   | "zoomend"
   | "dragstart"
-  | "dragend";
+  | "dragend"
+  /** 地図の大きさが変わったとき（画面の向きを変えたときなど） */
+  | "resize";
 
 export interface MapCamera {
   getContainer(): HTMLElement;

@@ -32,7 +32,7 @@ import type {
   ConsultTurn,
 } from "@/app/(public)/consult/types/consultConversation";
 import type { Shop } from "@/app/(public)/map/data/shops";
-import type { KnowledgeRow, ParsedRequest } from "@/lib/grandma/types";
+import type { ParsedRequest } from "@/lib/grandma/types";
 import {
   extractKeywords,
   isShopRelatedQuestion,
@@ -57,6 +57,7 @@ import {
   fetchShopsByVendorIds,
   fetchShopByStoreNumber,
   fetchShopByName,
+  fetchAreaShops,
 } from "@/lib/grandma/vendorSearch";
 import {
   buildResponseSchema,
@@ -123,6 +124,8 @@ const AskJsonBodySchema = z.object({
   preferredCharacterId: z.string().nullable().optional(),
   visitorKey: z.string().max(128).nullable().optional(),
   stream: z.boolean().optional(),
+  /** 地図の「このへん」で選んだ範囲の店（地図の店 ID）。あれば、その範囲の店だけで答える */
+  areaShopIds: z.array(z.number().int().positive()).max(300).optional(),
 });
 
 /**
@@ -156,6 +159,7 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
   let preferredCharacterId: ConsultCharacterId | null = null;
   let visitorKey: string | null = null;
   let stream = false;
+  let areaShopIds: number[] | null = null;
 
   if (contentType.includes("multipart/form-data")) {
     const form = await request.formData();
@@ -257,6 +261,7 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
       visitorKey = vk.length > 0 && vk.length <= 128 ? vk : null;
     }
     stream = payload.stream === true;
+    areaShopIds = payload.areaShopIds ? Array.from(new Set(payload.areaShopIds)) : null;
   }
 
   return {
@@ -270,6 +275,7 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
     preferredCharacterId,
     visitorKey,
     stream,
+    areaShopIds,
   };
 }
 
@@ -736,6 +742,7 @@ export async function handleConsultAsk(
       preferredCharacterId,
       visitorKey,
       stream,
+      areaShopIds,
     } = parsedReq;
     const question = text || (imageDataUrl ? "画像について教えて" : "");
     if (!question) {
@@ -811,7 +818,7 @@ export async function handleConsultAsk(
       );
     }
 
-    const supabase = createClient<Database>(supabaseUrl, serviceRoleKey);
+    const supabase = createClient<DatabaseWithExtensions>(supabaseUrl, serviceRoleKey);
     // お店の判定・キーワード・埋め込みは日本語が前提なので、日本語以外の画面では検索用に訳す。
     // 回答を作るときは来訪者が書いた元の質問（question）を使う
     const searchQuestion = await translateQuestionForSearch(openaiKey, question, locale);
@@ -894,7 +901,8 @@ export async function handleConsultAsk(
       new Set(seasonalProducts.map((row) => row.vendorId)),
     );
 
-    const candidateVendorIds = shopIntent
+    // 「このへん」の相談は、範囲の店を質問に関係なく候補に入れる（範囲のことを聞いているので）
+    const candidateVendorIds = shopIntent || areaShopIds
       ? await fetchCandidateVendorIds(
           supabase,
           keywords,
@@ -906,10 +914,13 @@ export async function handleConsultAsk(
     if (targetShop?.vendorId) {
       candidateVendorIds.unshift(targetShop.vendorId);
     }
-    const candidateShops = await fetchShopsByVendorIds(
-      supabase,
-      Array.from(new Set(candidateVendorIds)).slice(0, 12),
-    );
+    // 範囲が指定されたら、範囲の店だけを候補にする（質問で引けた店を先に、残りは範囲の中心から近い順）
+    const candidateShops = areaShopIds
+      ? await fetchAreaShops(supabase, areaShopIds, candidateVendorIds)
+      : await fetchShopsByVendorIds(
+          supabase,
+          Array.from(new Set(candidateVendorIds)).slice(0, 12),
+        );
     // 質問文は残さない方針（#629）なので、件数と真偽だけを残す。英語で候補が出ない原因の切り分け用
     if (isForeign) {
       console.info("[grandma/ask] search", {
@@ -936,27 +947,11 @@ export async function handleConsultAsk(
       );
     }
 
-    const { data: knowledgeMatches } = await supabase
-      .rpc("match_knowledge_embeddings", {
-        query_embedding: embedding as unknown as string,
-        match_count: 3,
-        match_threshold: 0.55,
-      })
-      .returns<{ id: string; similarity: number }[]>();
-    const safeKnowledgeMatches = Array.isArray(knowledgeMatches)
-      ? knowledgeMatches
-      : [];
-    const knowledgeIds = safeKnowledgeMatches
-      .map((row) => row.id)
-      .filter(Boolean);
-    let knowledgeRows: KnowledgeRow[] = [];
-    if (knowledgeIds.length > 0) {
-      const { data } = await supabase
-        .from("knowledge_embeddings")
-        .select("id, category, title, content, image_url")
-        .in("id", knowledgeIds);
-      knowledgeRows = (data ?? []) as KnowledgeRow[];
-    }
+    const { data: knowledgeRows } = await supabase.rpc("match_knowledge_context", {
+      query_embedding: embedding as unknown as string,
+      match_count: 3,
+      match_threshold: 0.55,
+    });
 
     let storeKnowledgeContext = "";
     const ragVendorIds = Array.from(
@@ -992,7 +987,7 @@ export async function handleConsultAsk(
     }
 
     const knowledgeContext =
-      knowledgeRows.length > 0
+      knowledgeRows?.length
         ? knowledgeRows
             .map((row) => {
               return [
@@ -1018,6 +1013,11 @@ export async function handleConsultAsk(
       buildHistoryContext(history, memorySummary, historyLimit),
       `今回の質問: ${text || "（画像についての相談）"}`,
       `来訪者の居場所: ${describeLocationForPrompt(location)}`,
+      ...(areaShopIds
+        ? [
+            "相談の範囲: 来訪者が地図で選んだ範囲のお店について聞いている。店舗候補はこの範囲のお店だけ。範囲の外のお店は勧めない。合うお店が候補に無ければ、このへんには見当たらんと正直に伝える",
+          ]
+        : []),
       `現在の季節: ${currentSeason.seasonName}`,
       targetShop
         ? `注目中の店舗: id:${targetShop.id} | name:${targetShop.name}`

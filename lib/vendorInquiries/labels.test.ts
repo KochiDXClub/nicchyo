@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { VENDOR_INQUIRY_STATUS_BY_TOPIC } from "./constants";
-import { REPORT_PATTERNS, buildReportBody, findReportPattern, statusLabel } from "./labels";
+import { VENDOR_INQUIRY_CATEGORIES, VENDOR_INQUIRY_STATUS_BY_TOPIC } from "./constants";
+import {
+  CATEGORY_CHOICES,
+  CATEGORY_GUIDES,
+  REPORT_PATTERNS,
+  buildReportBody,
+  findReportPattern,
+  statusLabel,
+} from "./labels";
 
 describe("buildReportBody", () => {
   const lastDay = findReportPattern("last_day")!;
@@ -49,5 +56,19 @@ describe("statusLabel", () => {
 
   it("未知のstatusでも落ちずにそのまま返す", () => {
     expect(statusLabel("unknown_status").label).toBe("unknown_status");
+  });
+});
+
+describe("CATEGORY_GUIDES", () => {
+  it("宛先の選択肢は、DBが許す宛先をすべて1回ずつ並べる", () => {
+    expect([...CATEGORY_CHOICES].sort()).toEqual([...VENDOR_INQUIRY_CATEGORIES].sort());
+  });
+
+  it.each(VENDOR_INQUIRY_CATEGORIES)("%s に選択肢・確認・送信ボタンの文言がある", (category) => {
+    const guide = CATEGORY_GUIDES[category];
+    expect(guide.label).not.toBe("");
+    expect(guide.description).not.toBe("");
+    expect(guide.receipt).not.toBe("");
+    expect(guide.submitLabel).not.toBe("");
   });
 });

@@ -79,6 +79,33 @@ describe("主な商品の入力（名前・写真・値段）", () => {
     URL.revokeObjectURL = vi.fn();
   });
 
+  it("今週の商品は値段なしで、追加済みの商品と入力中の商品の写真をまとめて送れる", async () => {
+    const onSubmit = vi.fn();
+    const { container } = render(<AskInput question={ASK_QUESTION_BY_ID.get("weekly-products")!}
+      snapshot={{ weekly: { products: ["みかん"], isOpen: true } } as VendorAskSnapshot}
+      saving={false} onSubmit={onSubmit} onSkip={() => {}} />);
+    expect(screen.queryByLabelText("値段")).not.toBeInTheDocument();
+    pick("商品名", "トマト");
+    const file = new File(["x"], "tomato.jpg", { type: "image/jpeg" });
+    fireEvent.change(container.querySelectorAll('input[type="file"]')[1], { target: { files: [file] } });
+    await screen.findByRole("button", { name: "追加する商品の写真を変える" });
+    submit();
+    expect(onSubmit).toHaveBeenCalledWith({ id: "weekly-products", products: ["みかん", "トマト"],
+      photos: [{ name: "トマト", imageFile: file }] });
+  });
+
+  it("週が変わっても同じ商品の写真を表示し、写真を触らず名前だけで登録できる", () => {
+    const onSubmit = vi.fn();
+    const snapshot: Partial<VendorAskSnapshot> = { weekly: null, productPhotos: { トマト: "https://example.supabase.co/t.webp" } };
+    render(<AskInput question={ASK_QUESTION_BY_ID.get("weekly-products")!}
+      snapshot={snapshot as VendorAskSnapshot} saving={false} onSubmit={onSubmit} onSkip={() => {}} />);
+    pick("商品名", "トマト");
+    fireEvent.click(screen.getByRole("button", { name: "追加する" }));
+    expect(screen.getByRole("button", { name: "トマトの写真を変える" })).toBeInTheDocument();
+    submit();
+    expect(onSubmit).toHaveBeenCalledWith({ id: "weekly-products", products: ["トマト"] });
+  });
+
   it("写真を触らなければ、imageFile は渡さない（今の写真のまま）", () => {
     const { onSubmit } = renderProducts([{ name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp" }]);
     submit();
@@ -133,5 +160,25 @@ describe("店舗写真の入力（全周写真のサムネイルの切り直し�
   it("普通の写真には、切り取り位置を変えるボタンを出さない", () => {
     renderPhoto({ shopImageUrl: "https://x.supabase.co/v1/store-main.webp?v=1", shopImageKind: "normal" });
     expect(screen.queryByRole("button", { name: "サムネイルの切り取り位置を変える" })).toBeNull();
+  });
+});
+
+describe("SNS の ID 入力欄（X・インスタ）はパスワード管理に拾われない", () => {
+  it.each(["x", "instagram"] as const)("%s の入力欄は autocomplete を切り、拡張機能の対象外にする", (id) => {
+    render(
+      <AskInput
+        question={ASK_QUESTION_BY_ID.get(id)!}
+        snapshot={{} as VendorAskSnapshot}
+        saving={false}
+        onSubmit={() => {}}
+        onSkip={() => {}}
+      />,
+    );
+    const input = screen.getByRole("textbox");
+    expect(input).toHaveAttribute("autocomplete", "off");
+    expect(input).toHaveAttribute("spellcheck", "false");
+    expect(input).toHaveAttribute("data-1p-ignore");
+    expect(input).toHaveAttribute("data-lpignore", "true");
+    expect(input.getAttribute("name")).not.toMatch(/pass|pwd|password/i);
   });
 });

@@ -4,9 +4,7 @@ import { PageShell } from "@/components/ui";
 import { getLocale, getSiteText } from "@/lib/i18n/server";
 import { SUNDAY_MARKET_JSON_LD } from "@/lib/seo/sundayMarketJsonLd";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
-import { cookies } from "next/headers";
-import { createClient } from "@/utils/supabase/server";
-import { fetchMarketCalendar, type MarketCalendar } from "@/lib/market/calendar";
+import { loadPublicMarketCalendar } from "@/lib/market/calendar.server";
 import { fetchPublicShops } from "./map/services/shopCache";
 import { isPathVisibleToCurrentUser } from "@/lib/pageVisibility/server";
 import PreparingNotice from "../components/PreparingNotice";
@@ -16,8 +14,11 @@ import LandingHowTo from "./_landing/LandingHowTo";
 import LandingInfo from "./_landing/LandingInfo";
 import LandingHighlights from "./_landing/LandingHighlights";
 import LandingAbout from "./_landing/LandingAbout";
-import { buildLandingSundays } from "./_landing/upcomingSundays";
+import LandingFooter from "./_landing/LandingFooter";
+import { buildLandingMarketDays } from "./_landing/upcomingMarketDays";
 import { pickLandingShopPhotos } from "./_landing/pickLandingShops";
+import PublicMarketChoice from "@/app/components/market/PublicMarketChoice";
+import { fetchPublicMarkets } from "@/lib/market/publicMarkets.server";
 
 export async function generateMetadata(): Promise<Metadata> {
   const [locale, s] = await Promise.all([getLocale(), getSiteText()]);
@@ -50,16 +51,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/** 開催カレンダー（今週の開催状況と、これからの日曜の状態）。取れなかったときは null */
-async function fetchCalendar(): Promise<MarketCalendar | null> {
-  try {
-    const supabase = createClient(await cookies());
-    return await fetchMarketCalendar(supabase);
-  } catch {
-    return null;
-  }
-}
-
 /**
  * トップページ。以前は /map へリダイレクトしていたが、検索や口コミで来た人が
  * 「何のサイトか」「日曜市とは」を分かり、そのまま使い始められる案内のページにした。
@@ -76,24 +67,32 @@ export default async function HomePage() {
   if (!(await isPathVisibleToCurrentUser("/"))) return <PreparingNotice />;
 
   const locale = await getLocale();
-  const [shops, calendar, showOutingSupport] = await Promise.all([fetchPublicShops(locale).catch(() => []), fetchCalendar(), canShowOutingSupport()]);
-  const sundays = calendar ? buildLandingSundays(calendar.days) : [];
+  const [shops, calendar, showOutingSupport] = await Promise.all([
+    fetchPublicShops(locale).catch(() => []),
+    loadPublicMarketCalendar().catch(() => null),
+    canShowOutingSupport(),
+  ]);
+  const markets = calendar?.markets ?? await fetchPublicMarkets();
+  const showSundayDetails = markets.some((market) => market.slug === "nichiyo");
+  const marketDays = calendar ? buildLandingMarketDays(calendar) : [];
   const photos = pickLandingShopPhotos(shops);
 
   return (
     // 下のナビ（サブページでは「マップにもどる」の帯）は出さない。ここは入口なので「もどる」先が無い
     <PageShell bottomNav={false}>
       {/* 日曜市の開催情報（/map と同じもの）。検索結果に開催日と場所を出してもらう */}
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />
+      {showSundayDetails && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />}
       <main>
-        <LandingHero sundays={sundays} showOutingSupport={showOutingSupport} />
+        <LandingHero marketDays={marketDays} showOutingSupport={showOutingSupport} />
+        <PublicMarketChoice markets={markets} />
         {!calendar && <p role="status" className="mx-auto max-w-4xl px-5 py-4">開催状況を取得できませんでした。時間をおいて再度ご確認ください。</p>}
         <LandingGenres />
         <LandingHowTo />
-        <LandingInfo sundays={sundays} />
+        <LandingInfo marketDays={marketDays} showSundayDetails={showSundayDetails} />
         <LandingHighlights shopPhotos={photos} />
         <LandingAbout />
       </main>
+      <LandingFooter />
     </PageShell>
   );
 }

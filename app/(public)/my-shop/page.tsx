@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorStore } from "@/app/vendor/_services/storeService";
 import { fetchVendorPosts } from "@/app/vendor/_services/postsService";
 import type { Post } from "@/app/vendor/_types";
+import { NicchyoLogo } from "@/components/navigation/NicchyoLogoLink";
 import ClosedDaysCalendar from "@/components/vendor/ClosedDaysCalendar";
 import VendorBackdrop from "@/components/vendor/VendorBackdrop";
 import VendorAskStage from "./ask/VendorAskStage";
@@ -110,52 +111,57 @@ export default function MyShopPage() {
       </AnimatePresence>
 
       <div className="relative z-10 mx-auto w-full max-w-3xl px-4">
-        {/* お店の名前（アイコン付き）と、次の日曜市まで */}
-        <header className="flex items-center gap-3.5 pb-4 pt-10 sm:pt-14">
-          <ShopIcon imageUrl={summary?.shopImageUrl} />
-          <div className="min-w-0">
-            <h1 className="truncate font-display text-2xl leading-tight text-nicchyo-ink sm:text-3xl">
-              {shopName}
-            </h1>
-            <p className="mt-0.5 text-[15px] font-bold text-amber-900">{sundayLabel}</p>
+        {/* 上部：ロゴ → 店の名前と次の日曜市までの日数 → お知らせ、の順で一列に読めるように */}
+        <header className="space-y-5 pb-6 pt-[calc(var(--safe-top,0px)+1rem)] sm:pt-[calc(var(--safe-top,0px)+1.5rem)]">
+          <NicchyoLogo />
+          <div className="flex items-center gap-4">
+            <ShopIcon imageUrl={summary?.shopImageUrl} />
+            <div className="min-w-0 space-y-1.5">
+              <h1 className="truncate font-display text-[28px] leading-tight text-nicchyo-ink sm:text-3xl">
+                {shopName}
+              </h1>
+              <p className="inline-flex rounded-full bg-amber-100/80 px-3 py-1 text-sm font-bold text-amber-900">
+                {sundayLabel}
+              </p>
+            </div>
           </div>
         </header>
 
         {/* 運営・市役所からの、まだ確認していないお知らせ（無ければ何も出さない） */}
         {vendorId && (
-          <div className="empty:hidden mb-5">
+          <div className="empty:hidden mb-6">
             <NoticeBanner />
           </div>
         )}
 
         {/* にちよさんの質問：出店者の情報入力はここで会話の形で聞く */}
         {vendorId && (
-          <div className="mb-8">
+          <div className="mb-10">
             <VendorAskStage vendorId={vendorId} accountId={user?.id} />
           </div>
         )}
 
         {/* 質問では聞かない項目（店舗名・出店予定日・店舗写真・最初の投稿）が未完了のときだけ */}
         {incompleteSteps.length > 0 && (
-          <Reveal reduceMotion={reduceMotion} className="mb-5">
+          <Reveal reduceMotion={reduceMotion} className="mb-7">
             <section className="rounded-panel border border-amber-100 bg-white/85 p-5 shadow-card backdrop-blur-sm">
-              <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 className="font-display text-xl text-nicchyo-ink">お店の準備</h2>
                 <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-800">
                   あと{incompleteSteps.length}件
                 </span>
               </div>
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {incompleteSteps.map((step, i) => (
                   <li key={step.label}>
                     <Link
                       href={step.href}
-                      className="flex items-center gap-3.5 rounded-2xl bg-amber-50/80 px-4 py-3.5 text-nicchyo-ink transition active:scale-[0.99] active:bg-amber-100"
+                      className="flex items-center gap-3.5 rounded-2xl bg-amber-50/80 px-4 py-4 text-nicchyo-ink transition active:scale-[0.99] active:bg-amber-100"
                     >
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-amber-700 shadow-sm">
                         {i + 1}
                       </span>
-                      <span className="min-w-0 flex-1 text-[15px] font-bold leading-tight">
+                      <span className="min-w-0 flex-1 text-base font-bold leading-tight">
                         {step.label}
                       </span>
                       <ChevronRight size={18} className="shrink-0 text-amber-400" />
@@ -168,8 +174,8 @@ export default function MyShopPage() {
         )}
 
         {/* 主要アクション：いちばん使うのは「発信」 */}
-        <Reveal reduceMotion={reduceMotion} className="mb-5">
-          <div className="grid gap-3 sm:grid-cols-2">
+        <Reveal reduceMotion={reduceMotion} className="mb-8">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Link
               href="/vendor/posts"
               className="flex items-center justify-center gap-2.5 rounded-panel bg-amber-500 px-4 py-5 text-lg font-bold text-white shadow-brand-pop transition active:scale-[0.99] hover:bg-amber-400"
@@ -189,10 +195,10 @@ export default function MyShopPage() {
 
         {/* 出店しない日（日曜帯・ホームでは簡易版） */}
         {vendorId && (
-          <Reveal reduceMotion={reduceMotion} className="mb-6">
+          <Reveal reduceMotion={reduceMotion} className="mb-8">
             <div>
               <ClosedDaysCalendar vendorId={vendorId} variant="strip" />
-              <div className="mt-2 text-right">
+              <div className="mt-3 text-right">
                 <Link
                   href="/my-shop/schedule"
                   className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-amber-700 shadow-sm backdrop-blur-sm transition active:scale-95"
@@ -207,14 +213,14 @@ export default function MyShopPage() {
 
         {/* 最近の投稿 */}
         {posts !== null && (
-          <Reveal reduceMotion={reduceMotion} className="mb-6">
+          <Reveal reduceMotion={reduceMotion} className="mb-8">
             <section>
-              <div className="mb-3 flex items-end justify-between gap-3">
+              <div className="mb-4 flex items-end justify-between gap-3">
                 <h2 className="font-display text-xl text-nicchyo-ink">最近の投稿</h2>
                 {posts.length > 0 && (
                   <Link
                     href="/vendor/posts"
-                    className="rounded-full border border-amber-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-amber-700 shadow-sm backdrop-blur-sm transition active:scale-95"
+                    className="rounded-full border border-amber-200 bg-white/80 px-3 py-1.5 text-sm font-bold text-amber-700 shadow-sm backdrop-blur-sm transition active:scale-95"
                   >
                     すべて見る
                   </Link>
@@ -230,19 +236,20 @@ export default function MyShopPage() {
                     <Sparkles size={22} />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[15px] font-bold text-nicchyo-ink">
+                    <span className="block text-base font-bold text-nicchyo-ink">
                       はじめての発信をしてみましょう
                     </span>
-                    <span className="mt-0.5 block text-[13px] text-slate-500">
+                    <span className="mt-1 block text-sm text-nicchyo-ink/70">
                       今日のおすすめや、お休みのお知らせを届けられます
                     </span>
                   </span>
                 </Link>
               ) : (
                 <ul className="space-y-3">
-                  {posts.slice(0, 3).map((post) => (
+                  {/* 上の3件のうち最新2件だけ。トップは一覧への入口にとどめる */}
+                  {posts.slice(0, 2).map((post) => (
                     <li key={post.id}>
-                      <div className="flex gap-3.5 rounded-panel border border-amber-100 bg-white/85 p-3.5 shadow-card backdrop-blur-sm">
+                      <div className="flex gap-4 rounded-panel border border-amber-100 bg-white/85 p-4 shadow-card backdrop-blur-sm">
                         {post.image_url && (
                           <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-amber-50">
                             <Image
@@ -255,15 +262,15 @@ export default function MyShopPage() {
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="line-clamp-2 text-[14px] leading-relaxed text-nicchyo-ink">
+                          <p className="line-clamp-2 text-[15px] leading-relaxed text-nicchyo-ink">
                             {post.text || "（本文なし）"}
                           </p>
-                          <div className="mt-2 flex items-center gap-2">
-                            <span className="text-[12px] text-slate-400">
+                          <div className="mt-2.5 flex items-center gap-2">
+                            <span className="text-[13px] text-nicchyo-ink/55">
                               {formatPostDate(post.created_at)}
                             </span>
                             <span
-                              className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
                                 post.status === "active"
                                   ? "bg-emerald-50 text-emerald-600"
                                   : "bg-slate-100 text-slate-400"
@@ -282,12 +289,7 @@ export default function MyShopPage() {
           </Reveal>
         )}
 
-        {/* ほかの機能はメニューへ誘導（下部バー中央） */}
-        <p className="pb-2 text-center text-[13px] text-nicchyo-ink">
-          ほかの機能は下の
-          <span className="mx-1 font-bold text-amber-900">メニュー</span>
-          から
-        </p>
+        {/* ほかの機能は下部のメニューから（案内文は下部バーに任せ、ここでは出さない） */}
       </div>
     </div>
   );

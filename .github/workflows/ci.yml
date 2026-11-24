@@ -5,7 +5,8 @@ on:
     branches: [develop, main]
   # スタックPR（親の機能ブランチ宛て）でも必須チェックを実行する。
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    # labeled / unlabeled: `code-health-ok` ラベルの付け外しで判定をやり直す
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   merge_group:
   workflow_dispatch:
 
@@ -42,17 +43,19 @@ jobs:
       - name: Test
         run: npm test
 
-      # 共通化・デザインルールのビフォーアフターをジョブのサマリーに出す（docs/CODE_HEALTH.md）。
-      # 運用に慣れるまでは失敗扱いにしない（--strict を付けない）
-      - name: Code health
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: node scripts/code-health/cli.mjs --base "origin/$BASE_REF" --summary-file "$GITHUB_STEP_SUMMARY"
-
       - name: Build
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      # 共通化・デザインルールのビフォーアフターをジョブのサマリーに出し、悪化があれば失敗にする（docs/CODE_HEALTH.md）。
+      # ビルドの結果を先に確かめられるよう最後に置く。
+      # 悪化を残す理由がある PR は `code-health-ok` ラベルを付けると、表は出したまま失敗にしない。
+      - name: Code health
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          STRICT_FLAG: ${{ !contains(github.event.pull_request.labels.*.name, 'code-health-ok') && '--strict' || '' }}
+        run: node scripts/code-health/cli.mjs --base "origin/$BASE_REF" --summary-file "$GITHUB_STEP_SUMMARY" $STRICT_FLAG

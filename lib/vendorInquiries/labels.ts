@@ -32,6 +32,43 @@ export const CATEGORY_LABELS: Record<VendorInquiryCategory, string> = {
   both: "市役所と運営の両方",
 };
 
+/** 新規連絡の最初に出す宛先の並び。迷ったときの「両方」は最後に置く */
+export const CATEGORY_CHOICES: readonly VendorInquiryCategory[] = ["operator", "city", "both"];
+
+/**
+ * 宛先を選ぶ画面の案内。
+ * - label / description: 選択肢に出す名前と「どんな用件向きか」
+ * - receipt: 送信前に出す「誰が受け取り、どう返ってくるか」
+ * - submitLabel: 送信ボタンの文言
+ *
+ * 市役所の担当者用の受信箱はまだ無く（vendor_inquiries の migration 参照）、
+ * category='city' の連絡も運営が受け取って市役所へ取り次いでいる。receipt はその実態に合わせる。
+ * 市役所ロールが受信箱を持ったら city / both の receipt を書き換える。
+ */
+export const CATEGORY_GUIDES: Record<
+  VendorInquiryCategory,
+  { label: string; description: string; receipt: string; submitLabel: string }
+> = {
+  operator: {
+    label: "nicchyo運営",
+    description: "このアプリ・地図・お店の情報のこと",
+    receipt: "nicchyo運営が確認して、このページで返信します。",
+    submitLabel: "運営に送る",
+  },
+  city: {
+    label: "高知市役所",
+    description: "出店の手続き・場所・市のルールのこと",
+    receipt: "高知市役所あてとして届きます。いまは nicchyo運営が受け取り、市役所の担当者へ取り次ぎます。",
+    submitLabel: "市役所に送る",
+  },
+  both: {
+    label: "両方",
+    description: "どちらか迷うとき・両方に知らせたいとき",
+    receipt: "市役所と運営の両方に届きます。返信はどちらから来ることもあります。",
+    submitLabel: "両方に送る",
+  },
+};
+
 export const URGENCY_LABELS: Record<VendorInquiryUrgency, { label: string; description: string }> = {
   low: { label: "急がない", description: "時間があるときで大丈夫" },
   normal: { label: "ふつう", description: "数日のうちに知りたい" },
@@ -85,8 +122,6 @@ export type ReportPatternField = {
 export type ReportPattern = {
   id: string;
   label: string;
-  /** 宛先。運営が仲介するものは operator、市役所の判断が要るものは city */
-  category: VendorInquiryCategory;
   fields: ReportPatternField[];
 };
 
@@ -94,7 +129,6 @@ export const REPORT_PATTERNS: ReportPattern[] = [
   {
     id: "last_day",
     label: "出店を最後にする",
-    category: "both",
     fields: [
       { name: "last_date", label: "最終出店予定日", type: "date", required: true },
       { name: "reason", label: "理由（任意）", type: "textarea", placeholder: "差し支えなければ教えてください" },
@@ -103,7 +137,6 @@ export const REPORT_PATTERNS: ReportPattern[] = [
   {
     id: "absence",
     label: "しばらく出店を休む",
-    category: "both",
     fields: [
       { name: "from_date", label: "休み始める日", type: "date", required: true },
       { name: "to_date", label: "再開予定日（未定なら空欄）", type: "date" },
@@ -113,7 +146,6 @@ export const REPORT_PATTERNS: ReportPattern[] = [
   {
     id: "shop_info_changed",
     label: "店名・商品が変わった",
-    category: "operator",
     fields: [
       { name: "changed", label: "変わった内容", type: "textarea", placeholder: "例：店名を「〇〇」に変えました", required: true },
     ],
@@ -121,7 +153,6 @@ export const REPORT_PATTERNS: ReportPattern[] = [
   {
     id: "contact_changed",
     label: "連絡先が変わった",
-    category: "both",
     fields: [
       { name: "new_contact", label: "新しい連絡先", type: "text", placeholder: "電話番号やメールアドレス", required: true },
     ],
@@ -129,7 +160,6 @@ export const REPORT_PATTERNS: ReportPattern[] = [
   {
     id: "other",
     label: "その他の報告",
-    category: "operator",
     fields: [],
   },
 ];

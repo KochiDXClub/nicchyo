@@ -1,5 +1,5 @@
 /**
- * スポット管理（/admin/spots と /api/admin/spots）で共有する定数と型。
+ * イラスト管理のスポット欄（/admin/spots と /api/admin/spots）で共有する定数と型。
  * API ルートはサーバー専用モジュール（next/headers）に依存するため、
  * クライアントの管理画面はここから import する。
  */

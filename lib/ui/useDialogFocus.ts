@@ -2,12 +2,24 @@
 
 import { useEffect, type RefObject } from "react";
 
+// <summary> は <details> を開閉するための操作なので、フォーカスできる要素に含める
 const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+
+/**
+ * 閉じた <details> の中身は表示されないので、フォーカスできない（<summary> は除く）。
+ * ここに含めると、フォーカスが背面へ逃げて Tab が止まる。
+ */
+function isInsideClosedDetails(element: HTMLElement): boolean {
+  const details = element.closest("details:not([open])");
+  if (!details) return false;
+  const summary = Array.from(details.children).find((child) => child.tagName === "SUMMARY");
+  return !(summary && summary.contains(element));
+}
 
 function focusablesIn(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    (element) => element.getAttribute("aria-hidden") !== "true"
+    (element) => element.getAttribute("aria-hidden") !== "true" && !isInsideClosedDetails(element)
   );
 }
 

@@ -18,7 +18,28 @@ it("公開予定には必要なテーブルだけを読み、旧配置履歴や�
   query.order.mockReturnValue(query);
   const client = { from: (table: string) => { tables.push(table); return query; } } as unknown as SupabaseClient;
   const data = await readPublicScheduleData(client);
-  expect(tables).toEqual(["market_locations", "market_place_memberships", "market_place_membership_periods", "market_place_schedule_rules", "market_place_schedule_overrides"]);
+  expect(tables).toEqual(["markets", "market_locations", "market_place_memberships", "market_place_membership_periods", "market_place_schedule_rules", "market_place_schedule_overrides"]);
   expect(data.legacyAssignments).toEqual([]);
   expect(data.vendors).toEqual([]);
+});
+
+it("木曜市の場所や予定は、日曜市の予定の読み込みに混ざらない", async () => {
+  const rows: Record<string, unknown[]> = {
+    markets: [{ id: "m-sun", slug: "nichiyo" }, { id: "m-thu", slug: "mokuyo" }],
+    market_locations: [{ id: "loc-sun", market_id: "m-sun" }, { id: "loc-thu", market_id: "m-thu" }],
+    market_place_memberships: [{ id: "mem-sun", location_id: "loc-sun" }, { id: "mem-thu", location_id: "loc-thu" }],
+    market_place_membership_periods: [{ id: "p-sun", membership_id: "mem-sun" }, { id: "p-thu", membership_id: "mem-thu" }],
+    market_place_schedule_rules: [{ id: "r-sun", membership_id: "mem-sun" }, { id: "r-thu", membership_id: "mem-thu" }],
+    market_place_schedule_overrides: [{ location_id: "loc-sun" }, { location_id: "loc-thu" }],
+  };
+  let current: unknown[] = [];
+  const query = { select: vi.fn(), order: vi.fn(), range: vi.fn() };
+  query.select.mockReturnValue(query);
+  query.order.mockReturnValue(query);
+  query.range.mockImplementation(async () => ({ data: current, error: null }));
+  const client = { from: (table: string) => { current = rows[table] ?? []; return query; } } as unknown as SupabaseClient;
+  const data = await readPublicScheduleData(client);
+  expect(data.places.map((place) => place.id)).toEqual(["loc-sun"]);
+  expect(data.rules.map((rule) => rule.id)).toEqual(["r-sun"]);
+  expect(data.overrides.map((override) => override.location_id)).toEqual(["loc-sun"]);
 });

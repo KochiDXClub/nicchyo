@@ -2,17 +2,17 @@ import { CloudRain, Sun } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { getStatusPresentation } from "@/lib/market/calendar";
 import { getLocale, getT } from "@/lib/i18n/server";
-import { isOff, monthLabel, type LandingSunday } from "./upcomingSundays";
+import { isOff, monthLabel, type LandingMarketDay } from "./upcomingMarketDays";
 import "./landing.css";
 
 /**
  * これからの日曜の1枚（カレンダーから吊るした札）。開催カレンダー（market_days）の状態つき。
  * 荒天中止・臨時休市は灰色。「次の日曜市は、いつ？」とトップの写真の上で同じ見た目を使う
  */
-export default async function SundayCard({ sunday }: { sunday: LandingSunday }) {
+export default async function MarketDateCard({ marketDay }: { marketDay: LandingMarketDay }) {
   const [locale, t] = await Promise.all([getLocale(), getT()]);
-  const off = isOff(sunday.status);
-  const statusLabel = t(getStatusPresentation(sunday.status).label);
+  const off = isOff(marketDay.status);
+  const statusLabel = t(getStatusPresentation(marketDay.status).label);
   return (
     <li
       className={cn(
@@ -24,8 +24,9 @@ export default async function SundayCard({ sunday }: { sunday: LandingSunday }) 
         <i className="block h-[15px] w-[7px] rounded-sm bg-amber-900" />
         <i className="block h-[15px] w-[7px] rounded-sm bg-amber-900" />
       </span>
-      <span className={cn("text-[11px] font-bold", off ? "text-nicchyo-ink/40" : "text-amber-800")}>{monthLabel(sunday.month, locale)}</span>
-      <span className={cn("font-display text-[1.75rem] leading-[1.1]", off ? "text-nicchyo-ink/40" : "text-nicchyo-ink")}>{sunday.day}</span>
+      <span className={cn("text-[11px] font-bold", off ? "text-nicchyo-ink/40" : "text-amber-800")}>{monthLabel(marketDay.month, locale)}</span>
+      <span className={cn("font-display text-[1.75rem] leading-[1.1]", off ? "text-nicchyo-ink/40" : "text-nicchyo-ink")}>{marketDay.day}</span>
+      {marketDay.marketName && <span className="max-w-full truncate text-[10px] font-bold">{t(marketDay.marketName)}</span>}
       {off ? (
         <CloudRain aria-hidden className="my-0.5 h-[22px] w-[22px] text-nicchyo-ink/40" />
       ) : (

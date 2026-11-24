@@ -45,14 +45,6 @@ export type ActiveContentRow = {
   created_at: string;
 };
 
-export type KnowledgeRow = {
-  id: string;
-  category: string | null;
-  title: string | null;
-  content: string | null;
-  image_url: string | null;
-};
-
 export type SeasonalProductRow = {
   vendorId: string;
   shopName: string;
@@ -71,6 +63,8 @@ export type ParsedRequest = {
   preferredCharacterId: ConsultCharacterId | null;
   visitorKey: string | null;
   stream: boolean;
+  /** 地図の「このへん」で選んだ範囲の店（地図の店 ID）。null なら市場全体から探す */
+  areaShopIds: number[] | null;
 };
 
 export type StructuredConsultResponse = {

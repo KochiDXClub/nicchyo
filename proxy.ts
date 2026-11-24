@@ -5,6 +5,7 @@ import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
   LOCALE_HEADER,
+  LOCALE_PATH_HEADER,
   isLocale,
   isLocalizablePath,
   localizePath,
@@ -125,6 +126,26 @@ function isDocumentNavigation(request: NextRequest): boolean {
   return (request.headers.get("accept") ?? "").includes("text/html");
 }
 
+/**
+ * セッションを確認し、ユーザーと Cookie 転写先のレスポンスを返す。
+ *
+ * Supabase のログイン Cookie（名前が sb- で始まる）を持たない来訪者は、getUser() を呼んでも
+ * 必ず未ログインになる。そこで認証サーバーへの往復を省き、user を null として扱う。
+ * 大半の来訪者（公開ページを見るだけの人）はこの経路を通り、proxy の CPU 時間を大きく減らす。
+ * Cookie がある人は従来どおり毎回 getUser() で検証する（改ざんや失効の判定はここで行う）。
+ */
+async function refreshSession(request: NextRequest) {
+  const hasSessionCookie = request.cookies.getAll().some((cookie) => cookie.name.startsWith("sb-"));
+  if (!hasSessionCookie) {
+    return { user: null, supabaseResponse: NextResponse.next() };
+  }
+  const { supabase, getResponse } = createClient(request);
+  // getUser() 内でセッションリフレッシュが起きると createClient 内の supabaseResponse が
+  // 再代入されるため、呼び出し後に getResponse() で最新のレスポンスを取得する
+  const { data: { user } } = await supabase.auth.getUser();
+  return { user, supabaseResponse: getResponse() };
+}
+
 export async function proxy(request: NextRequest) {
   // /en/map のようなロケール付きURLは、ロケールを外した /map として以降の判定・描画を行う。
   // ロケールは URL のプレフィックス → Cookie → 日本語 の順で決める
@@ -163,13 +184,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
-  const { supabase, getResponse } = createClient(request);
-
-  // セッション更新（Supabase Auth）
-  // getUser() 内でセッションリフレッシュが起きると createClient 内の supabaseResponse が
-  // 再代入されるため、呼び出し後に getResponse() で最新のレスポンスを取得する
-  const { data: { user } } = await supabase.auth.getUser();
-  const supabaseResponse = getResponse();
+  // セッション更新（Supabase Auth）。ログイン Cookie の無い来訪者は認証の往復を省く（下の関数の説明を参照）
+  const { user, supabaseResponse } = await refreshSession(request);
 
   // パスベースのアクセス制御
   const appRole = getRole(user);
@@ -271,6 +287,7 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
   requestHeaders.set(LOCALE_HEADER, locale);
+  requestHeaders.set(LOCALE_PATH_HEADER, pathname);
 
   // 準備中のページは、URL はそのまま中身だけ /preparing に差し替える。
   // /en/… はロケールを外したパスへ書き換えて描画する（ブラウザのURLは /en/… のまま）

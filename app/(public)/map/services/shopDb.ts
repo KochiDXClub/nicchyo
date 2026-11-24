@@ -66,6 +66,8 @@ type LocationRow = {
   latitude: number | null;
   longitude: number | null;
   district: string | null;
+  market_id?: string;
+  road_side?: "left" | "right" | null;
 };
 
 type AssignmentRow = {
@@ -445,7 +447,7 @@ export function buildVendorProfiles(
 export function buildVendorShops(
   base: VendorShopBaseRows,
   activeContents: ActiveContentRow[],
-  options?: { stableIds?: boolean }
+  options?: { stableIds?: boolean; useStoredRoadSide?: boolean }
 ): Shop[] {
   const locations = new Map(base.locations.map((location) => [location.id, location]));
   const latest = new Map<string, AssignmentRow>();
@@ -472,6 +474,9 @@ export function buildVendorShops(
     if (!Number.isFinite(position) || position <= 0) continue;
     if (options?.stableIds && (location.latitude == null || location.longitude == null || !Number.isFinite(location.latitude) || !Number.isFinite(location.longitude) || Math.abs(location.latitude) > 90 || Math.abs(location.longitude) > 180 || (location.latitude === 0 && location.longitude === 0))) continue;
     const shop: VisibleShopRow = { ...profile, position, lat: Number(location.latitude ?? 0), lng: Number(location.longitude ?? 0), chome: normalizeChome(location.district), assignmentMarketDate: assignment.market_date ?? null };
+    if (options?.useStoredRoadSide && location.road_side) {
+      shop.roadSide = location.road_side === "left" ? "north" : "south";
+    }
     const current = byLocation.get(position);
     if (!current || !current.assignmentMarketDate || (shop.assignmentMarketDate && shop.assignmentMarketDate > current.assignmentMarketDate)) byLocation.set(position, shop);
   }

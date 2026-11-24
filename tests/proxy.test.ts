@@ -26,6 +26,10 @@ async function loadProxy() {
 }
 
 const req = (path: string) => new NextRequest(new URL(path, "https://nicchyo.test"));
+const withSession = (path: string) =>
+  new NextRequest(new URL(path, "https://nicchyo.test"), {
+    headers: { cookie: "sb-example-auth-token=abc" },
+  });
 
 describe("proxy", () => {
   const fetchMock = vi.fn();
@@ -61,7 +65,8 @@ describe("proxy", () => {
       mocks.getResponse.mockReturnValue(refreshed);
 
       const { proxy } = await loadProxy();
-      const res = await proxy(req("/map"));
+      // リフレッシュは本物のログイン Cookie があるときだけ起きるので、それを付けて送る
+      const res = await proxy(withSession("/map"));
       expect(res.cookies.get("sb-token")).toMatchObject({
         value: "v",
         maxAge: 3600,
@@ -79,9 +84,38 @@ describe("proxy", () => {
       mocks.getResponse.mockReturnValue(refreshed);
 
       const { proxy } = await loadProxy();
-      const res = await proxy(req("/admin"));
+      const res = await proxy(withSession("/admin"));
       expect(res.status).toBe(307);
       expect(res.cookies.get("sb-token")).toMatchObject({ maxAge: 100, secure: true });
+    });
+  });
+
+  describe("セッション確認の省略", () => {
+    it("ログイン Cookie の無い来訪者は認証の往復（getUser）を呼ばない", async () => {
+      fetchMock.mockResolvedValue(settingsResponse(false));
+      const { proxy } = await loadProxy();
+      const res = await proxy(req("/map"));
+      expect(mocks.getUser).not.toHaveBeenCalled();
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    });
+
+    it("sb- で始まるログイン Cookie があれば従来どおり getUser で検証する", async () => {
+      fetchMock.mockResolvedValue(settingsResponse(false));
+      const { proxy } = await loadProxy();
+      const request = new NextRequest(new URL("/map", "https://nicchyo.test"), {
+        headers: { cookie: "sb-example-auth-token=abc" },
+      });
+      await proxy(request);
+      expect(mocks.getUser).toHaveBeenCalledTimes(1);
+    });
+
+    it("Cookie が無くても /admin は未ログインとして / へ戻す（判定は変わらない）", async () => {
+      fetchMock.mockResolvedValue(settingsResponse(false));
+      const { proxy } = await loadProxy();
+      const res = await proxy(req("/admin"));
+      expect(mocks.getUser).not.toHaveBeenCalled();
+      expect(res.status).toBe(307);
+      expect(new URL(res.headers.get("location")!).pathname).toBe("/");
     });
   });
 

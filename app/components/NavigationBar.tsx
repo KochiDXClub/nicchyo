@@ -137,6 +137,12 @@ type NavigationBarProps = {
    * 指定した画面は、lg 以上で下端にナビの分の余白を取らないこと（--nav-bar-height を 0 にする）
    */
   backBarOnTop?: boolean;
+  /**
+   * backBarOnTop の右上のもどるバーを、lg 以上で隠す。画面の中で右上に大きなパネル（お店の詳細など）
+   * を開いていて、その閉じるボタン・お気に入りボタンとバーが重なるときに使う。
+   * スマホの下端のもどるバーはそのまま出す。
+   */
+  hideTopBackBar?: boolean;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -148,6 +154,7 @@ function NavigationBarInner({
   onCloseMode,
   onConsultClick,
   backBarOnTop = false,
+  hideTopBackBar = false,
 }: NavigationBarProps) {
   const t = useT();
   const pathname = useAppPathname();
@@ -393,7 +400,7 @@ function NavigationBarInner({
           isMapNav || topBackBar
             ? "lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:w-auto lg:rounded-full lg:border lg:shadow-float"
             : ""
-        }`}
+        } ${topBackBar && hideTopBackBar ? "lg:hidden" : ""}`}
         style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
       >
         {isHome ? (

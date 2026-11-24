@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { showToast } from "@/lib/admin/toast";
 import { formatEventDate, normalizeStatus, type MarketDayStatus } from "@/lib/market/calendar";
 
@@ -6,6 +6,7 @@ export type MarketDayRow = {
   market_date: string;
   status: string;
   note: string | null;
+  image_url?: string | null;
   updated_at: string;
 };
 
@@ -43,22 +44,40 @@ export function useAdminMarketDays({
   const [days, setDays] = useState<MarketDayRow[]>([]);
   const [history, setHistory] = useState<MarketDayHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingDate, setSavingDate] = useState<string | null>(null);
+  // ソフトウェアキーボードや連続操作でも再レンダーを待たず、同じ日付の処理を直列化する。
+  const pending = useRef(new Map<string, "save" | "upload">());
+  const [operations, setOperations] = useState(() => new Map(pending.current));
+  const latestFetch = useRef(0);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [statusDrafts, setStatusDrafts] = useState<Record<string, MarketDayStatus>>({});
+  /** 画像の下書き。null は「画像を外す」、キーが無ければ確定値のまま */
+  const [imageDrafts, setImageDrafts] = useState<Record<string, string | null>>({});
+  const begin = (dateIso: string, operation: "save" | "upload") => {
+    if (pending.current.has(dateIso)) return false;
+    pending.current.set(dateIso, operation);
+    setOperations(new Map(pending.current));
+    return true;
+  };
+
+  const finish = (dateIso: string) => {
+    pending.current.delete(dateIso);
+    setOperations(new Map(pending.current));
+  };
 
   const fetchDays = useCallback(async () => {
+    const fetchId = ++latestFetch.current;
     setLoading(true);
     try {
       const res = await fetch(endpoint);
       if (!res.ok) throw new Error("failed");
       const data = (await res.json()) as { days: MarketDayRow[]; history?: MarketDayHistoryItem[] };
+      if (latestFetch.current !== fetchId) return;
       setDays(data.days);
       setHistory(data.history ?? []);
     } catch {
-      showToast.error("開催ステータスの取得に失敗しました");
+      if (latestFetch.current === fetchId) showToast.error("開催ステータスの取得に失敗しました");
     } finally {
-      setLoading(false);
+      if (latestFetch.current === fetchId) setLoading(false);
     }
   }, [endpoint]);
 
@@ -83,13 +102,46 @@ export function useAdminMarketDays({
 
   const byDate = useMemo(() => new Map(days.map((d) => [d.market_date, d])), [days]);
 
-  const save = async (dateIso: string, status: MarketDayStatus, note: string) => {
-    setSavingDate(dateIso);
+  /**
+   * 日曜の画像をアップロードして下書きにする（公開は保存ボタンまで行わない）。
+   * アップロード先は運営の画像API。高知市の画面では使わない（editable を渡さない）。
+   */
+  const uploadImage = async (dateIso: string, file: File) => {
+    if (!begin(dateIso, "upload")) return;
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/admin/events/image", { method: "POST", body });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "アップロードに失敗しました");
+      const url = data.url;
+      setImageDrafts((prev) => ({ ...prev, [dateIso]: url }));
+      showToast.success("画像をアップロードしました（保存すると公開されます）");
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : "アップロードに失敗しました");
+    } finally {
+      finish(dateIso);
+    }
+  };
+
+  const save = async (
+    dateIso: string,
+    status: MarketDayStatus,
+    note: string,
+    /** undefined なら画像は送らず既存のまま（高知市）。null は画像を外す */
+    image?: string | null
+  ) => {
+    if (!begin(dateIso, "save")) return;
     try {
       const res = await fetch(endpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ market_date: dateIso, status, note: note || null }),
+        body: JSON.stringify({
+          market_date: dateIso,
+          status,
+          note: note || null,
+          ...(image !== undefined ? { image_url: image } : {}),
+        }),
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
@@ -107,11 +159,16 @@ export function useAdminMarketDays({
         delete next[dateIso];
         return next;
       });
+      setImageDrafts((prev) => {
+        const next = { ...prev };
+        delete next[dateIso];
+        return next;
+      });
       void fetchDays();
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
-      setSavingDate(null);
+      finish(dateIso);
     }
   };
 
@@ -134,20 +191,36 @@ export function useAdminMarketDays({
   const setNoteDraft = (dateIso: string, note: string) =>
     setNoteDrafts((prev) => ({ ...prev, [dateIso]: note }));
 
+  const committedImageFor = (dateIso: string): string | null =>
+    byDate.get(dateIso)?.image_url ?? null;
+
+  /** 画面上の画像。下書きがあればそれ、無ければ確定値 */
+  const imageFor = (dateIso: string): string | null =>
+    dateIso in imageDrafts ? imageDrafts[dateIso] : committedImageFor(dateIso);
+
+  const setImageDraft = (dateIso: string, url: string | null) =>
+    setImageDrafts((prev) => ({ ...prev, [dateIso]: url }));
+
   const isDirty = (dateIso: string): boolean =>
     draftStatusFor(dateIso) !== committedStatusFor(dateIso) ||
-    noteFor(dateIso) !== (byDate.get(dateIso)?.note ?? "");
+    noteFor(dateIso) !== (byDate.get(dateIso)?.note ?? "") ||
+    imageFor(dateIso) !== committedImageFor(dateIso);
 
   return {
     loading,
     history,
-    savingDate,
+    isSaving: (dateIso: string) => operations.get(dateIso) === "save",
     recentNotes,
     committedStatusFor,
     draftStatusFor,
     setStatusDraft,
     noteFor,
     setNoteDraft,
+    imageFor,
+    setImageDraft,
+    uploadImage,
+    isUploadingImage: (dateIso: string) => operations.get(dateIso) === "upload",
+    imageDraftFor: (dateIso: string): string | null | undefined => imageDrafts[dateIso],
     isDirty,
     save,
   };

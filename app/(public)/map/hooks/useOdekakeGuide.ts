@@ -33,6 +33,7 @@ import {
 } from '@/lib/guide';
 import type { GuideQuery } from '@/lib/guide/query';
 import { sendEvent } from '@/lib/analytics/sendEvent';
+import { createLocationChoiceReporter } from '@/lib/analytics/locationPermissionCount';
 
 /** この距離以内に近づいたら「到着」 */
 const ARRIVAL_METERS = 25;
@@ -138,6 +139,8 @@ export function useOdekakeGuide({
   }, []);
 
   /** 位置情報の取得を始める。未許可ならブラウザの許可ダイアログが出る（ユーザー操作から呼ぶ） */
+  const [choiceReporter] = useState(createLocationChoiceReporter);
+
   const requestLocation = useCallback(() => {
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
       setGeoStatus('unsupported');
@@ -149,6 +152,7 @@ export function useOdekakeGuide({
       (position) => {
         const point = { lat: position.coords.latitude, lng: position.coords.longitude };
         if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return;
+        choiceReporter.onAllowed();
         setGeoStatus('granted');
         setGeolocation((prev) => {
           if (prev && distanceInMeters(prev.point, point) < ORIGIN_MOVE_THRESHOLD_METERS) return prev;
@@ -157,6 +161,7 @@ export function useOdekakeGuide({
       },
       (error) => {
         if (error.code === error.PERMISSION_DENIED) {
+          choiceReporter.onDenied();
           setGeolocation(null);
           setGeoStatus('denied');
           return;
@@ -170,7 +175,7 @@ export function useOdekakeGuide({
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
-  }, [stopWatching]);
+  }, [stopWatching, choiceReporter]);
 
   useEffect(() => {
     if (!active) {
@@ -185,6 +190,7 @@ export function useOdekakeGuide({
     }
     let cancelled = false;
     let permission: PermissionStatus | null = null;
+    void choiceReporter.readPriorState();
     const applyState = (state: PermissionState) => {
       if (cancelled) return;
       if (state === 'granted') requestLocation();
@@ -213,7 +219,7 @@ export function useOdekakeGuide({
       if (permission) permission.onchange = null;
       stopWatching();
     };
-  }, [active, requestLocation, stopWatching]);
+  }, [active, requestLocation, stopWatching, choiceReporter]);
 
   // 許可ダイアログが放置された等で「取得中」のまま止まらないよう、一定時間で失敗扱いにする
   useEffect(() => {
