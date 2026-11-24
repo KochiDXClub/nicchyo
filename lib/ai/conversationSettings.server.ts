@@ -13,8 +13,7 @@
  */
 
 import { cache } from "react";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
-import type { DatabaseWithExtensions } from "@/types/database.extensions";
+import { createTypedAdminClient } from "@/lib/supabase/adminClient";
 import {
   AI_CONVERSATION_SETTING_KEYS,
   DEFAULT_AI_CONVERSATION_SETTINGS,
@@ -29,14 +28,9 @@ export const AI_CONVERSATION_SETTINGS_TABLE = "ai_conversation_settings";
  * 1リクエスト内で複数回呼ばれても問い合わせは1回で済ませる。
  */
 export const fetchAiConversationSettings = cache(async (): Promise<AiConversationSettings> => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return DEFAULT_AI_CONVERSATION_SETTINGS;
-
   try {
-    const client = createServiceClient<DatabaseWithExtensions>(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const client = createTypedAdminClient();
+    if (!client) return DEFAULT_AI_CONVERSATION_SETTINGS;
     const { data, error } = await client
       .from(AI_CONVERSATION_SETTINGS_TABLE)
       .select("key, value")
