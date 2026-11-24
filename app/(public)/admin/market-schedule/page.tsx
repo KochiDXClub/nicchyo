@@ -110,7 +110,7 @@ export default function MarketSchedulePage() {
   if (isLoading || !permissions.isAdmin) return null;
   return <AdminLayout><AdminPageHeader eyebrow="Schedule" title="出店予定管理" description="場所ごと・店舗ごとに出店予定を確認します" />
     <main className="mx-auto max-w-5xl space-y-5 px-4 py-5">
-      <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{publicEnabled === null ? "公開設定を確認できません。変更前に設定画面で確認してください。" : publicEnabled ? "出店予定は公開マップに反映されます。変更前に競合と公開日を確認してください。" : "この画面の予定はまだ公開マップには反映されません。運用開始前の確認用です。"} <a className="font-bold underline" href="/admin/legacy-shop-identities">公開設定を確認</a></p>
+      <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{publicEnabled === null ? "公開設定を確認できません。変更前に設定画面で確認してください。" : publicEnabled ? "出店予定は公開マップに反映されます。変更前に競合と公開日を確認してください。" : "この画面の予定はまだ公開マップには反映されません。運用開始前の確認用です。"}</p>
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm">{notice}</p>}
       {!data ? <p>読み込み中…</p> : <>

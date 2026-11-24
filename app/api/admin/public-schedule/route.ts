@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   const { data, error } = await db.rpc("set_public_schedule_rollout", { p_enabled: body.enabled, p_expected: body.revision, p_actor: guard.ctx.user.id });
   if (error) return NextResponse.json({ error: "公開設定を保存できませんでした" }, { status: 500 });
   const status = (data as { status?: string } | null)?.status;
-  if (status !== "ok") return NextResponse.json({ error: status === "stale" ? "別の画面で更新されました。再読み込みしてください。" : status === "no_rules" ? "出店予定を登録してから公開してください。" : status === "irreversible" ? "公開開始後は旧番号の表示に戻せません。必要な場合はマップの公開設定を変更してください。" : "公開設定を確認してください" }, { status: 409 });
+  if (status !== "ok") return NextResponse.json({ error: status === "stale" ? "別の画面で更新されました。再読み込みしてください。" : status === "no_rules" ? "出店予定を登録してから公開してください。" : status === "irreversible" ? "公開開始後は、公開前の表示に戻せません。必要な場合はマップの公開設定を変更してください。" : "公開設定を確認してください" }, { status: 409 });
   await logAdminAudit(guard.ctx.adminClient, { id: guard.ctx.user.id, email: guard.ctx.user.email, role: guard.ctx.role }, { action: "public_schedule_rollout", targetType: "public_schedule", details: JSON.stringify({ enabled: body.enabled }), ipAddress: guard.ctx.ip });
   revalidatePublicShops();
   revalidatePublicScheduleRollout();
