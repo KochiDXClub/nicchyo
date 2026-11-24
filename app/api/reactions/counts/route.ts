@@ -61,10 +61,19 @@ export async function GET(req: Request) {
   }
 
   // 件数は DB 側で GROUP BY 集計（id ごとの件数のみ返す）。
-  const { data: countRows, error: countError } = await supabase.rpc(
-    "get_reaction_counts",
-    { content_ids: ids }
-  );
+  // 件数の集計と訪問者のハート済み一覧は互いに依存しないので、同時に問い合わせて往復を1回分減らす
+  const countsRequest = supabase.rpc("get_reaction_counts", { content_ids: ids });
+  const reactedRequest = visitorKey
+    ? supabase
+        .from("content_reactions")
+        .select("vendor_content_id")
+        .eq("visitor_key", visitorKey)
+        .in("vendor_content_id", ids)
+    : null;
+  const [{ data: countRows, error: countError }, reactedResult] = await Promise.all([
+    countsRequest,
+    reactedRequest,
+  ]);
 
   if (countError) {
     return NextResponse.json(
@@ -84,12 +93,8 @@ export async function GET(req: Request) {
   // visitorKey が指定された場合のみ、その訪問者がハート済みの id を取得する。
   // UNIQUE(vendor_content_id, visitor_key) により最大でも ids 件数（≤30）に収まる。
   let reactedIds: string[] = [];
-  if (visitorKey) {
-    const { data: reactedRows, error: reactedError } = await supabase
-      .from("content_reactions")
-      .select("vendor_content_id")
-      .eq("visitor_key", visitorKey)
-      .in("vendor_content_id", ids);
+  if (visitorKey && reactedResult) {
+    const { data: reactedRows, error: reactedError } = reactedResult;
 
     if (reactedError) {
       return NextResponse.json(
