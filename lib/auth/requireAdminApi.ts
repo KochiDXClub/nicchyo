@@ -10,7 +10,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { createTypedAdminClient } from "@/lib/supabase/adminClient";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { getRole, isAdmin } from "./permissions";
@@ -28,13 +28,11 @@ export type AdminApiContext = {
 export function createAdminServiceClient(
   supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL,
 ): SupabaseClient<DatabaseWithExtensions> {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
+  const client = createTypedAdminClient(supabaseUrl);
+  if (!client) {
     throw new Error("Supabase service role env vars are missing.");
   }
-  return createServiceClient<DatabaseWithExtensions>(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  return client;
 }
 
 /**
