@@ -40,6 +40,8 @@ export const AUDIT_ACTIONS = {
   legacy_shop_identity_revoke: { label: "旧店舗番号の対応を取消", tone: "caution" },
   legacy_shop_identity_confirm: { label: "旧店舗番号の対応を確定", tone: "caution" },
   market_schedule_edit: { label: "出店予定を編集", tone: "info" },
+  vendor_intention_season_create: { label: "出店意向調査の受付期間を作成", tone: "good" },
+  vendor_intention_season_edit: { label: "出店意向調査の受付を開閉", tone: "caution" },
   // マップ編集
   map_edit_save_vendors: { label: "マップ編集で出店者を保存", tone: "info" },
   map_edit_delete_vendors_attempt: { label: "マップ編集で出店者の削除を開始", tone: "caution" },

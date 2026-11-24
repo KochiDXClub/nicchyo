@@ -56,3 +56,13 @@ export async function readOwnIntentionResponse(db: SupabaseClient, seasonYear: n
   if (error) throw error;
   return data ? rowToIntentionResponse(data as IntentionResponseRow) : null;
 }
+
+/** 全季節（運営の管理画面用。新しい季節から並ぶ） */
+export async function listIntentionSeasons(db: SupabaseClient): Promise<IntentionSeason[]> {
+  const { data, error } = await db
+    .from("vendor_intention_seasons")
+    .select(INTENTION_SEASON_COLUMNS)
+    .order("season_year", { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as IntentionSeasonRow[]).map(rowToIntentionSeason);
+}
