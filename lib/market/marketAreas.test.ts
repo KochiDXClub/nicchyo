@@ -19,9 +19,10 @@ describe("parseMarketAreaLabel", () => {
     expect(parseMarketAreaLabel("あ".repeat(MARKET_AREA_LABEL_MAX_LENGTH)).ok).toBe(true);
   });
 
-  it("改行とタブは拒否する", () => {
+  it("改行・タブ・NUL などの制御文字は拒否する", () => {
     expect(parseMarketAreaLabel("一\n丁目").ok).toBe(false);
     expect(parseMarketAreaLabel("一\t丁目").ok).toBe(false);
+    expect(parseMarketAreaLabel("一\u0000丁目").ok).toBe(false);
   });
 });
 

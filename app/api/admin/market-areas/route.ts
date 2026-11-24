@@ -13,6 +13,9 @@ export const dynamic = "force-dynamic";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** 並べ替えで一度に受け付ける丁目の数の上限 */
+const MAX_REORDER_IDS = 100;
+
 const WRITE_RATE_LIMIT = { limit: 60, windowMs: 10 * 60 * 1000 };
 
 type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>;
@@ -21,6 +24,30 @@ type AreaRow = { id: string; market_id: string; label: string; sort_order: numbe
 
 function toMarketArea(row: AreaRow): MarketArea {
   return { id: row.id, marketId: row.market_id, label: row.label, sortOrder: row.sort_order };
+}
+
+type AdminUser = NonNullable<Awaited<ReturnType<typeof authorizeAdmin>>["user"]>;
+
+/**
+ * 書き込み API の共通の前処理：同じ出所の確認・レート制限・管理者の確認・DB への接続。
+ * 通らなければ、そのまま返す応答を response に入れて返す。
+ */
+async function prepareWrite(
+  req: Request,
+  bucket: string,
+): Promise<{ ok: true; user: AdminUser; dc: AdminClient } | { ok: false; response: Response }> {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return { ok: false, response: originCheck.response };
+
+  const rateLimited = await enforceRateLimit(req, { bucket, ...WRITE_RATE_LIMIT });
+  if (rateLimited) return { ok: false, response: rateLimited };
+
+  const { user, error } = await authorizeAdmin();
+  if (error || !user) return { ok: false, response: NextResponse.json({ error }, { status: 403 }) };
+
+  const dc = createAdminClient();
+  if (!dc) return { ok: false, response: NextResponse.json({ error: "Service unavailable" }, { status: 503 }) };
+  return { ok: true, user, dc };
 }
 
 async function readJsonObject(req: Request): Promise<Record<string, unknown> | null> {
@@ -56,17 +83,9 @@ export async function GET(req: Request) {
 
 /** 丁目の追加（並び順は末尾） */
 export async function POST(req: Request) {
-  const originCheck = requireSameOrigin(req);
-  if (!originCheck.ok) return originCheck.response;
-
-  const rateLimited = await enforceRateLimit(req, { bucket: "admin-market-areas-post", ...WRITE_RATE_LIMIT });
-  if (rateLimited) return rateLimited;
-
-  const { user, error } = await authorizeAdmin();
-  if (error || !user) return NextResponse.json({ error }, { status: 403 });
-
-  const dc = createAdminClient();
-  if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+  const guard = await prepareWrite(req, "admin-market-areas-post");
+  if (!guard.ok) return guard.response;
+  const { user, dc } = guard;
 
   const body = await readJsonObject(req);
   const marketId = typeof body?.marketId === "string" ? body.marketId : "";
@@ -106,17 +125,9 @@ export async function POST(req: Request) {
 
 /** 丁目の名前変更（同じ市の区画の丁目も同時に変わる） */
 export async function PATCH(req: Request) {
-  const originCheck = requireSameOrigin(req);
-  if (!originCheck.ok) return originCheck.response;
-
-  const rateLimited = await enforceRateLimit(req, { bucket: "admin-market-areas-patch", ...WRITE_RATE_LIMIT });
-  if (rateLimited) return rateLimited;
-
-  const { user, error } = await authorizeAdmin();
-  if (error || !user) return NextResponse.json({ error }, { status: 403 });
-
-  const dc = createAdminClient();
-  if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+  const guard = await prepareWrite(req, "admin-market-areas-patch");
+  if (!guard.ok) return guard.response;
+  const { user, dc } = guard;
 
   const body = await readJsonObject(req);
   const id = typeof body?.id === "string" ? body.id : "";
@@ -150,22 +161,14 @@ export async function PATCH(req: Request) {
 
 /** 丁目の並べ替え。marketId の丁目を、ids の順に並べ直す（過不足があれば変えない） */
 export async function PUT(req: Request) {
-  const originCheck = requireSameOrigin(req);
-  if (!originCheck.ok) return originCheck.response;
-
-  const rateLimited = await enforceRateLimit(req, { bucket: "admin-market-areas-put", ...WRITE_RATE_LIMIT });
-  if (rateLimited) return rateLimited;
-
-  const { user, error } = await authorizeAdmin();
-  if (error || !user) return NextResponse.json({ error }, { status: 403 });
-
-  const dc = createAdminClient();
-  if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+  const guard = await prepareWrite(req, "admin-market-areas-put");
+  if (!guard.ok) return guard.response;
+  const { user, dc } = guard;
 
   const body = await readJsonObject(req);
   const marketId = typeof body?.marketId === "string" ? body.marketId : "";
   const ids = Array.isArray(body?.ids) ? body.ids : null;
-  if (!UUID_PATTERN.test(marketId) || !ids || ids.length === 0 || !ids.every((id) => typeof id === "string" && UUID_PATTERN.test(id))) {
+  if (!UUID_PATTERN.test(marketId) || !ids || ids.length === 0 || ids.length > MAX_REORDER_IDS || !ids.every((id) => typeof id === "string" && UUID_PATTERN.test(id))) {
     return NextResponse.json({ error: "並び順の指定が正しくありません" }, { status: 400 });
   }
 
@@ -187,17 +190,9 @@ export async function PUT(req: Request) {
 
 /** 丁目の削除。その丁目の区画がある間は削除しない（区画の丁目が消えてしまうのを防ぐ） */
 export async function DELETE(req: Request) {
-  const originCheck = requireSameOrigin(req);
-  if (!originCheck.ok) return originCheck.response;
-
-  const rateLimited = await enforceRateLimit(req, { bucket: "admin-market-areas-delete", ...WRITE_RATE_LIMIT });
-  if (rateLimited) return rateLimited;
-
-  const { user, error } = await authorizeAdmin();
-  if (error || !user) return NextResponse.json({ error }, { status: 403 });
-
-  const dc = createAdminClient();
-  if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+  const guard = await prepareWrite(req, "admin-market-areas-delete");
+  if (!guard.ok) return guard.response;
+  const { user, dc } = guard;
 
   const body = await readJsonObject(req);
   const id = typeof body?.id === "string" ? body.id : "";

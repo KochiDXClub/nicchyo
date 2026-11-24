@@ -572,6 +572,41 @@ export type Database = {
         }
         Relationships: []
       }
+      market_areas: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          market_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          market_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          market_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_areas_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_announcements: {
         Row: {
           body: string
@@ -1796,6 +1831,14 @@ export type Database = {
           p_vendor_id: string
         }
         Returns: Json
+      }
+      rename_market_area: {
+        Args: { p_id: string; p_label: string }
+        Returns: undefined
+      }
+      reorder_market_areas: {
+        Args: { p_ids: string[]; p_market_id: string }
+        Returns: undefined
       }
       get_reaction_counts: {
         Args: { content_ids: string[] }

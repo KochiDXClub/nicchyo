@@ -21,7 +21,7 @@ export function parseMarketAreaLabel(raw: unknown): MarketAreaLabelResult {
   if (label.length === 0 || [...label].length > MARKET_AREA_LABEL_MAX_LENGTH) {
     return { ok: false, error: `丁目の名前は1〜${MARKET_AREA_LABEL_MAX_LENGTH}文字で入力してください` };
   }
-  if (/[\r\n\t]/.test(label)) return { ok: false, error: "丁目の名前に改行やタブは使えません" };
+  if (/\p{Cc}/u.test(label)) return { ok: false, error: "丁目の名前に改行やタブなどの制御文字は使えません" };
   return { ok: true, label };
 }
 
