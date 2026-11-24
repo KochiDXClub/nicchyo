@@ -1,8 +1,8 @@
 import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import { NextResponse } from "next/server";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createTypedAdminClient } from "@/lib/supabase/adminClient";
 import type { Database } from "@/types/database.types";
-import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { buildGrandmaAiSystemPrompt } from "@/lib/grandma/prompts/consultSystemPrompt";
 import { buildLanguageInstruction } from "@/lib/grandma/prompts/languageRules";
 import { translateQuestionForSearch } from "@/lib/grandma/searchQuestion";
@@ -755,17 +755,13 @@ export async function handleConsultAsk(
     const normalized = question.replace(/\s+/g, "");
     const selectedCharacters = pickConsultCharacters(preferredCharacterId);
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // env 未設定なら null。不正検知と回答づくりで同じクライアントを使う
+    const supabase = createTypedAdminClient();
     // 不正検知は来訪者向け。管理者の対話テストで管理者のIPを疑わせない
-    if (supabaseUrl && serviceRoleKey && !internal) {
-      const secClient = createClient<DatabaseWithExtensions>(
-        supabaseUrl,
-        serviceRoleKey,
-      );
+    if (supabase && !internal) {
       const ip = getForwardedClientIp(request);
       const abuseResult = await handleAbuseDetection(
-        secClient,
+        supabase,
         ip,
         text,
         visitorKey ?? undefined,
@@ -801,7 +797,7 @@ export async function handleConsultAsk(
     const consultId = crypto.randomUUID();
 
     const openaiKey = process.env.OPENAI_API_KEY;
-    if (!supabaseUrl || !serviceRoleKey || !openaiKey) {
+    if (!supabase || !openaiKey) {
       return NextResponse.json(
         buildErrorResponse(
           "system_error",
@@ -818,7 +814,6 @@ export async function handleConsultAsk(
       );
     }
 
-    const supabase = createClient<DatabaseWithExtensions>(supabaseUrl, serviceRoleKey);
     // お店の判定・キーワード・埋め込みは日本語が前提なので、日本語以外の画面では検索用に訳す。
     // 回答を作るときは来訪者が書いた元の質問（question）を使う
     const searchQuestion = await translateQuestionForSearch(openaiKey, question, locale);
