@@ -231,17 +231,25 @@ function buildShopFeatureCollection(
   return { type: "FeatureCollection", features };
 }
 
-/** 建物ラベル（Marker）の見た目を、旧 MapEditCanvas.tsx の建物マーカーに合わせて更新する */
+/**
+ * 建物ラベル（Marker）の見た目を、旧 MapEditCanvas.tsx の建物マーカーに合わせて更新する。
+ * 名前は選択中・未保存・検索でヒットしたものだけ出し、それ以外はアイコンだけの小さな印にする
+ * （スマホで建物名が重なって地図を覆うのを防ぐ）。名前は title / aria-label で残す。
+ */
 function styleLandmarkElement(
   el: HTMLDivElement,
   landmark: EditableLandmark,
-  opts: { isSelected: boolean; opacity: number; draggable: boolean; unsaved: boolean }
+  opts: { isSelected: boolean; opacity: number; draggable: boolean; unsaved: boolean; showName: boolean }
 ) {
-  el.textContent = `\u{1F3DB}\u{FE0F} ${landmark.name}`;
+  const icon = "\u{1F3DB}\u{FE0F}";
+  el.textContent = opts.showName ? `${icon} ${landmark.name}` : icon;
+  el.title = landmark.name;
+  el.setAttribute("aria-label", landmark.name);
   Object.assign(el.style, {
-    padding: "3px 8px",
-    borderRadius: "8px",
-    fontSize: "11px",
+    padding: opts.showName ? "3px 8px" : "2px 4px",
+    borderRadius: opts.showName ? "8px" : "999px",
+    fontSize: opts.showName ? "11px" : "12px",
+    lineHeight: "1.2",
     fontWeight: "800",
     whiteSpace: "nowrap",
     background: opts.isSelected ? "#92400E" : "#ffffffee",
@@ -878,6 +886,8 @@ export default function MapEditCanvasMapLibre({
       // 選択ツールのときだけ掴める。他の道具のときは地図へのクリックを奪わない
       const draggable = tool === "select";
       const unsaved = unsavedKeys.has(`landmarks:${landmark.key}`);
+      // 名前を出すのは、選択中・未保存・検索でヒットしたものだけ（それ以外はアイコンのみ）
+      const showName = isSelected || unsaved || (!!query && !dim);
 
       let marker = existing.get(landmark.key);
       if (!marker) {
@@ -904,7 +914,7 @@ export default function MapEditCanvasMapLibre({
         marker.setLngLat([landmark.lng, landmark.lat]);
       }
       marker.setDraggable(draggable);
-      styleLandmarkElement(marker.getElement() as HTMLDivElement, landmark, { isSelected, opacity, draggable, unsaved });
+      styleLandmarkElement(marker.getElement() as HTMLDivElement, landmark, { isSelected, opacity, draggable, unsaved, showName });
     }
 
     for (const [key, marker] of existing) {
