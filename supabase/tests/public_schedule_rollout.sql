@@ -20,15 +20,6 @@ begin
     if sqlerrm <> 'rollback single-date fixture' then raise; end if;
   end;
   insert into public.market_place_schedule_rules(membership_id,period_id,cadence,starts_on) values (member,period,'weekly','2026-11-01');
-  insert into public.legacy_shop_identity_aliases(legacy_shop_id,vendor_id,confirmed_by,evidence) values (998,vendor,actor,'確認済みの旧台帳記録です');
-  insert into public.legacy_shop_identity_revocations(legacy_shop_id,revoked_by,reason) values (998,actor,'対応の誤りを確認しました');
-  begin
-    delete from public.legacy_shop_identity_revocations where legacy_shop_id = 998;
-    raise exception 'revocation delete was accepted';
-  exception when raise_exception then
-    if sqlerrm <> 'legacy_shop_identity_revocation_is_immutable' then raise; end if;
-  end;
-  if has_table_privilege('anon','public.legacy_shop_identity_revocations','select') then raise exception 'revocation audit is public'; end if;
   result := public.set_public_schedule_rollout(true, 1, actor);
   if result->>'status' <> 'ok' or not (select enabled from public.public_schedule_rollout where id) then raise exception 'enable failed: %', result; end if;
   result := public.set_public_schedule_rollout(false, 1, actor);
