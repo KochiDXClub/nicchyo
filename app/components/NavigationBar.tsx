@@ -7,6 +7,7 @@ import { useEffect, useCallback, useId, useRef, useState, Suspense } from "react
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3,
+  Building2,
   CalendarDays,
   CircleHelp,
   Compass,
@@ -123,6 +124,11 @@ const adminMenuItems: SheetItem[] = [
   { label: "コンテンツ管理", href: "/admin/content", icon: FileText },
 ];
 
+// ─── 高知市の入口 ─────────────────────────────────────────────────────────────
+// /city は city_official と admin だけが入れる（layout・proxy と同じ条件）。
+const CITY_PATH = "/city";
+const cityNavItem: NavItem = { name: "高知市", href: CITY_PATH, icon: Building2 };
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 type NavigationBarProps = {
   activeHref?: string;
@@ -224,8 +230,11 @@ function NavigationBarInner({
   const adminNavItems: NavItem[] = permissions.isAdmin
     ? [{ name: "管理", href: "/admin/dashboard", icon: Settings }]
     : [];
+  // 高知市の入口は city_official と admin に出す（/city の入場条件と同じ）
+  const showCityEntry = (permissions.isCityOfficial || permissions.isAdmin) && isLinkVisible(CITY_PATH);
   const rightNavItems = [
     ...(storyNavItem ? [storyNavItem] : []),
+    ...(showCityEntry ? [cityNavItem] : []),
     ...adminNavItems.filter((item) => isLinkVisible(item.href)),
   ];
   // 公開設定はパス単位なので、/map?guide=menu のようなクエリは外して判定する

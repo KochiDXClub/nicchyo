@@ -1,10 +1,16 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadFavoriteEntries, saveFavoriteEntries } from "../favoriteShops";
-import { useFavoriteEntries } from "./useFavorites";
+
+// 旧番号の確認結果はモジュール内に10分間残るので、テストごとに読み直して影響を残さない
+let loadFavoriteEntries: typeof import("../favoriteShops").loadFavoriteEntries;
+let saveFavoriteEntries: typeof import("../favoriteShops").saveFavoriteEntries;
+let useFavoriteEntries: typeof import("./useFavorites").useFavoriteEntries;
 
 describe("旧番号から移行したお気に入り", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.resetModules();
+    ({ loadFavoriteEntries, saveFavoriteEntries } = await import("../favoriteShops"));
+    ({ useFavoriteEntries } = await import("./useFavorites"));
     localStorage.clear();
     saveFavoriteEntries([{ shopId: 1001, legacyShopId: 12, product: null, addedAt: 1 }]);
   });

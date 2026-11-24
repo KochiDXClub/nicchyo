@@ -460,3 +460,68 @@ describe("旧店舗番号のお気に入り移行", () => {
   });
 
 });
+
+describe("旧店舗番号の対応の取得の回数", () => {
+  const ALIAS_URL = "/api/shops/legacy-identities";
+  function stubAliasFetch(ok = true) {
+    const fetchMock = vi.fn(async () =>
+      ok
+        ? new Response(JSON.stringify({ enabled: true, aliases: {} }), { status: 200 })
+        : new Response("{}", { status: 503 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+  function aliasCalls(fetchMock: ReturnType<typeof vi.fn>) {
+    return fetchMock.mock.calls.filter((call) => String(call[0]).includes(ALIAS_URL)).length;
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("画面を開き直しても、確認済みの間は対応の取得を繰り返さない", async () => {
+    const { saveFavoriteEntries, tryMigrateFavoriteShopIdentities } = await import("./favoriteShops");
+    saveFavoriteEntries([{ shopId: 12, product: null, addedAt: 10 }]);
+    const fetchMock = stubAliasFetch();
+    for (let i = 0; i < 5; i += 1) {
+      await tryMigrateFavoriteShopIdentities();
+    }
+    process.stdout.write(`[measure] legacy-identities requests for 5 sequential reads: ${aliasCalls(fetchMock)}\n`);
+    expect(aliasCalls(fetchMock)).toBe(1);
+  });
+
+  it("10分を過ぎたら取り直す", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-24T10:00:00Z"));
+    const { saveFavoriteEntries, tryMigrateFavoriteShopIdentities } = await import("./favoriteShops");
+    saveFavoriteEntries([{ shopId: 12, product: null, addedAt: 10 }]);
+    const fetchMock = stubAliasFetch();
+    await tryMigrateFavoriteShopIdentities();
+    vi.setSystemTime(new Date("2026-11-24T10:09:59Z"));
+    await tryMigrateFavoriteShopIdentities();
+    expect(aliasCalls(fetchMock)).toBe(1);
+    vi.setSystemTime(new Date("2026-11-24T10:10:01Z"));
+    await tryMigrateFavoriteShopIdentities();
+    expect(aliasCalls(fetchMock)).toBe(2);
+  });
+
+  it("取得に失敗したら確認済みにせず、次の読み込みで取り直す", async () => {
+    const { saveFavoriteEntries, tryMigrateFavoriteShopIdentities } = await import("./favoriteShops");
+    saveFavoriteEntries([{ shopId: 12, product: null, addedAt: 10 }]);
+    const fetchMock = stubAliasFetch(false);
+    expect(await tryMigrateFavoriteShopIdentities()).toBe(false);
+    expect(await tryMigrateFavoriteShopIdentities()).toBe(false);
+    expect(aliasCalls(fetchMock)).toBe(2);
+  });
+
+  it("お気に入りが無い・店ごとの行が無いときは取りに行かない", async () => {
+    const { tryMigrateFavoriteShopIdentities } = await import("./favoriteShops");
+    const fetchMock = stubAliasFetch();
+    await tryMigrateFavoriteShopIdentities();
+    expect(aliasCalls(fetchMock)).toBe(0);
+  });
+});
