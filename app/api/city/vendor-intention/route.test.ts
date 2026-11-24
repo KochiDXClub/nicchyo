@@ -4,10 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const requireCityApi = vi.fn();
 const findLatestIntentionSeason = vi.fn();
 const responses: unknown[] = [];
+const places = [
+  { id: "p1", storeNumber: 1, name: null },
+  { id: "p2", storeNumber: 2, name: null },
+];
 
 vi.mock("@/lib/auth/requireCityApi", () => ({ requireCityApi: () => requireCityApi() }));
 vi.mock("@/lib/vendor/intention.server", () => ({
   findLatestIntentionSeason: () => findLatestIntentionSeason(),
+  listIntentionPlaces: async () => places,
 }));
 
 /** 季節の行と回答の行を返す、最小のクエリの代わり */
@@ -33,6 +38,8 @@ const unauthorized = { error: new Response(JSON.stringify({ error: "Unauthorized
 
 const get = (query = "") => GET(new Request(`http://localhost/api/city/vendor-intention${query}`));
 
+const season = { seasonYear: 2027, title: "t", opensOn: "2026-12-01", closesOn: "2027-01-31" };
+
 beforeEach(() => {
   requireCityApi.mockReset();
   findLatestIntentionSeason.mockReset();
@@ -47,11 +54,11 @@ describe("GET /api/city/vendor-intention", () => {
     expect(findLatestIntentionSeason).not.toHaveBeenCalled();
   });
 
-  it("店舗ごとの回答・店舗 ID・ひとことは返さず、集計だけを返す", async () => {
+  it("店舗ごとの回答・店舗 ID・ひとことは返さず、場所ごとの件数だけを返す", async () => {
     requireCityApi.mockResolvedValue(cityCtx);
-    findLatestIntentionSeason.mockResolvedValue({ seasonYear: 2027, title: "t", opensOn: "2026-12-01", closesOn: "2027-01-31" });
+    findLatestIntentionSeason.mockResolvedValue(season);
     for (let i = 0; i < 3; i += 1) {
-      responses.push({ booth_count: 1, frequency: "weekly", preferred_months: [4], vendor_id: `vendor-${i}`, note: "秘密のひとこと" });
+      responses.push({ vendor_id: `vendor-${i}`, place_id: "p1", note: "秘密のひとこと" });
     }
     const res = await get();
     expect(res.status).toBe(200);
@@ -60,16 +67,16 @@ describe("GET /api/city/vendor-intention", () => {
     expect(json).not.toContain("vendor-");
     expect(json).not.toContain("秘密のひとこと");
     expect(body.summary.respondents).toBe(3);
-    expect(body.summary.frequencies.find((c: { key: string }) => c.key === "weekly").count).toBe(3);
+    expect(body.summary.places.find((c: { placeId: string }) => c.placeId === "p1").count).toBe(3);
   });
 
   it("回答が少ない季節は件数を伏せる", async () => {
     requireCityApi.mockResolvedValue(cityCtx);
-    findLatestIntentionSeason.mockResolvedValue({ seasonYear: 2027, title: "t", opensOn: "2026-12-01", closesOn: "2027-01-31" });
-    responses.push({ booth_count: 2, frequency: "monthly", preferred_months: [] });
+    findLatestIntentionSeason.mockResolvedValue(season);
+    responses.push({ vendor_id: "v1", place_id: "p2" });
     const body = await (await get()).json();
     expect(body.summary.respondents).toBeNull();
-    expect(body.summary.boothCounts.every((c: { count: number | null }) => c.count === null)).toBe(true);
+    expect(body.summary.places.every((c: { count: number | null }) => c.count === null)).toBe(true);
   });
 
   it("季節の指定が数字でなければ 400", async () => {
