@@ -38,6 +38,8 @@ import { memoImage } from "./rasterCache";
  * 枚数は 形×色×状態 で数十枚に収まるため上限は緩くてよいが、
  * 端末の記憶容量を無制限には使わないよう入れた順に捨てる。
  */
+/** 写真入りの屋台の大きさ（通常の屋台は 60px。本体の写真が見えるよう一回り大きくする）。案内のデモも同じ値を使う */
+export const PHOTO_STALL_PX = 84;
 export type StallState = "normal" | "search" | "ai" | "selected";
 export const STALL_STATES: readonly StallState[] = ["normal", "search", "ai", "selected"];
 
