@@ -34,11 +34,12 @@ describe("summariseIntentions", () => {
     ];
     const summary = summariseIntentions(rows);
     expect(summary.respondents).toBe(5);
-    // 1区画は3件、2区画と3区画は1件ずつ（最少人数未満の2つが伏せられる）
-    expect(countOf(summary.boothCounts, 1)).toBe(3);
+    // 2区画と3区画は1件ずつ（伏せる）。伏せた項目があるので、表示中の最小の1区画（3件）も伏せる
+    expect(countOf(summary.boothCounts, 1)).toBeNull();
     expect(countOf(summary.boothCounts, 2)).toBeNull();
     expect(countOf(summary.boothCounts, 3)).toBeNull();
-    expect(countOf(summary.frequencies, "weekly")).toBe(3);
+    // 頻度は monthly(1)・undecided(1) を伏せるので、表示中の最小の weekly(3) も伏せる
+    expect(countOf(summary.frequencies, "weekly")).toBeNull();
     // 同じ人が同じ月を2回選んでも1回として数える
     expect(countOf(summary.months, 4)).toBe(4);
     // 3月は1件（最少人数未満）なので伏せる。12月は0件なので伏せない
@@ -60,7 +61,7 @@ describe("summariseIntentions", () => {
     expect(countOf(summary.boothCounts, 3)).toBe(0);
   });
 
-  it("伏せた項目が1つだけなら、いちばん小さい項目も伏せて合計から逆算させない", () => {
+  it("伏せた項目があれば、表示中のいちばん小さい項目も伏せて合計から逆算させない", () => {
     const rows = [
       ...Array.from({ length: 5 }, () => row({ frequency: "weekly" })),
       ...Array.from({ length: 4 }, () => row({ frequency: "monthly" })),
@@ -73,7 +74,20 @@ describe("summariseIntentions", () => {
     const hidden = summary.frequencies.filter((c) => c.count === null).map((c) => c.key);
     expect(hidden).toEqual(expect.arrayContaining(["undecided", "seasonal"]));
     expect(countOf(summary.frequencies, "weekly")).toBe(5);
-    expect(countOf(summary.frequencies, "monthly")).toBe(4);
+    // 表示中のうち最小の monthly(4) も伏せる
+    expect(countOf(summary.frequencies, "monthly")).toBeNull();
+  });
+
+  it("伏せた項目が2つ以上でも、表示中の最小の項目も伏せて合計から逆算させない", () => {
+    // 1区画=1、2区画=1、3区画=10。伏せた2つの合計は 12-10=2 で、両方とも 1 と確定してしまう
+    const rows = [
+      row({ booth_count: 1 }),
+      row({ booth_count: 2 }),
+      ...Array.from({ length: 10 }, () => row({ booth_count: 3 })),
+    ];
+    const summary = summariseIntentions(rows);
+    expect(summary.boothCounts.map((c) => c.count)).toEqual([null, null, null]);
+    expect(summary.respondents).toBe(12);
   });
 
   it("月の件数は最少人数未満だけ伏せる", () => {
