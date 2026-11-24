@@ -31,6 +31,10 @@ export async function GET() {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
 
+  // 公開切替の読み取りは投稿の取得と互いに依存しないので、先に始めて同時に待つ。
+  // 参照できないときは null にし、古い場所番号へ戻さない
+  const rolloutPromise = readPublicScheduleRollout().catch((): null => null);
+
   const { data, error } = await supabase
     .from("vendor_contents")
     .select(`
@@ -67,8 +71,7 @@ export async function GET() {
     new Set(stories.map((s) => s.vendor?.id).filter((v): v is string => !!v))
   );
   const storeNumberByVendor = new Map<string, number>();
-  let rollout: boolean | null = null;
-  try { rollout = await readPublicScheduleRollout(); } catch { /* 参照できないときは古い場所番号へ戻さない */ }
+  const rollout = await rolloutPromise;
   if (rollout === true) {
     try {
       for (const shop of await fetchPublicShopProfiles()) if (shop.vendorId) storeNumberByVendor.set(shop.vendorId, shop.id);
