@@ -7,6 +7,7 @@
 
 import {
   BarChart3,
+  CalendarClock,
   CircleHelp,
   Mail,
   Megaphone,
@@ -50,6 +51,7 @@ export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
   { label: "運営・市役所との連絡", href: "/vendor/inquiries", icon: Mail, description: "お知らせを見る・質問や相談を送る", group: "main", permission: "inquiries", inBottomBar: true },
   // 下部バーの「店舗情報」枠は「連絡」に差し替えたため、店舗情報への導線はここが主になる
   { label: "店舗情報を更新", href: "/vendor/store", icon: Store, description: "商品・写真・出店日をまとめて見直す", group: "main", permission: "store_edit" },
+  { label: "来季の出店の希望", href: "/vendor/intention", icon: CalendarClock, description: "来季の区画・出店の頻度・出たい月を答える", group: "main", permission: "store_edit" },
   { label: "近況を出す", href: "/vendor/posts", icon: Megaphone, description: "今日のおすすめを伝える・これまでの投稿を見返す", group: "main", permission: "post", inBottomBar: true },
   { label: "お店の分析", href: "/vendor/analytics", icon: BarChart3, description: "見られた回数とお客さんの反応", group: "main", permission: "analytics" },
   // メニューのカードは幅が狭いので短い名前にする。画面の見出しは「にちよさんが覚えちゅうこと」

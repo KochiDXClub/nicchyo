@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Store, Megaphone, ChevronRight, Sparkles } from "lucide-react";
+import { Store, Megaphone, ChevronRight, Sparkles, CalendarClock } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { hasShopPermission } from "@/lib/vendor/shopPermissions";
 import { fetchVendorStore } from "@/app/vendor/_services/storeService";
 import { fetchVendorPosts } from "@/app/vendor/_services/postsService";
 import type { Post } from "@/app/vendor/_types";
@@ -191,6 +192,16 @@ export default function MyShopPage() {
               店舗情報を更新
             </Link>
           </div>
+          {/* 来季の希望（出店意向調査）。店舗の編集権限がある人にだけ出す */}
+          {hasShopPermission(user?.shopMembership, "store_edit") && (
+            <Link
+              href="/vendor/intention"
+              className="mt-4 flex items-center justify-center gap-2.5 rounded-panel border border-amber-200 bg-white/85 px-4 py-4 text-base font-bold text-amber-800 shadow-card backdrop-blur-sm transition active:scale-[0.99] hover:bg-amber-50"
+            >
+              <CalendarClock size={20} />
+              来季の出店の希望を答える
+            </Link>
+          )}
         </Reveal>
 
         {/* 出店しない日（日曜帯・ホームでは簡易版） */}
