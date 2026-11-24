@@ -138,7 +138,7 @@ function toPayload(form: FormState) {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-amber-400 focus:outline-none";
+  "w-full rounded-lg border border-line px-3 py-1.5 text-sm focus:border-amber-400 focus:outline-none";
 
 function Field({
   label,
@@ -151,9 +151,9 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold text-slate-600">{label}</span>
+      <span className="mb-1 block text-xs font-semibold text-nicchyo-ink/70">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-[11px] text-slate-400">{hint}</span>}
+      {hint && <span className="mt-1 block text-[11px] text-nicchyo-ink/55">{hint}</span>}
     </label>
   );
 }
@@ -289,7 +289,7 @@ function SpotForm({
       <Field label="補足" hint="設備・混雑・注意など">
         <textarea className={inputClass} rows={2} value={form.notes} onChange={(e) => update("notes", e.target.value)} maxLength={600} />
       </Field>
-      <div className="flex flex-wrap gap-4 text-sm text-slate-700">
+      <div className="flex flex-wrap gap-4 text-sm text-nicchyo-ink">
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={form.show_on_map} onChange={(e) => update("show_on_map", e.target.checked)} />
           マップに常時表示する（お手洗い・休けいは通常オフ）
@@ -308,7 +308,7 @@ function SpotForm({
         >
           {saving ? "保存中..." : isNew ? "作成" : "保存"}
         </button>
-        <button type="button" onClick={onCancel} className="rounded-lg bg-slate-100 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-200">
+        <button type="button" onClick={onCancel} className="rounded-lg bg-nicchyo-ink/5 px-4 py-1.5 text-sm text-nicchyo-ink/70 hover:bg-nicchyo-ink/10">
           キャンセル
         </button>
       </div>
@@ -433,7 +433,7 @@ function SpotsPanel() {
 
   return (
     <>
-      <p className="mb-3 text-xs leading-relaxed text-slate-500">
+      <p className="mb-3 text-xs leading-relaxed text-nicchyo-ink/70">
         電停・駅・建物・お手洗い・休けい場所の情報（写真・タグ・路線・補足）を編集します。
         マップ上の位置とアイコンの大きさは「マップ編集」で調整してください。
       </p>
@@ -455,7 +455,7 @@ function SpotsPanel() {
             type="button"
             onClick={() => setFilter(c)}
             className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              filter === c ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              filter === c ? "bg-nicchyo-ink text-white" : "bg-nicchyo-ink/5 text-nicchyo-ink/70 hover:bg-nicchyo-ink/10"
             }`}
           >
             {c === "all" ? `すべて（${spots.length}）` : `${CATEGORY_LABEL[c]}（${spots.filter((s) => s.category === c).length}）`}
@@ -486,9 +486,9 @@ function SpotsPanel() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-slate-400">読み込み中...</div>
+        <div className="flex items-center justify-center py-16 text-nicchyo-ink/55">読み込み中...</div>
       ) : visible.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-500">スポットがありません</p>
+        <p className="py-8 text-center text-sm text-nicchyo-ink/70">スポットがありません</p>
       ) : (
         <div className="space-y-2">
           {visible.map((spot) =>
@@ -505,20 +505,20 @@ function SpotsPanel() {
                 onCancel={cancel}
               />
             ) : (
-              <div key={spot.key} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <div key={spot.key} className="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={spot.image_url} alt="" className="h-9 w-9 shrink-0 object-contain" />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-slate-800">{spot.name}</span>
+                    <span className="text-sm font-medium text-nicchyo-ink">{spot.name}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${CATEGORY_BADGE[spot.category]}`}>
                       {CATEGORY_LABEL[spot.category]}
                     </span>
-                    {spot.photo_url && <span className="text-[10px] text-slate-400">📷 写真あり</span>}
-                    {!spot.show_on_map && <span className="text-[10px] text-slate-400">案内時のみ表示</span>}
+                    {spot.photo_url && <span className="text-[10px] text-nicchyo-ink/55">📷 写真あり</span>}
+                    {!spot.show_on_map && <span className="text-[10px] text-nicchyo-ink/55">案内時のみ表示</span>}
                     {!spot.verified && <span className="text-[10px] text-rose-500">座標未確認</span>}
                   </div>
-                  <p className="mt-0.5 truncate text-xs text-slate-500">
+                  <p className="mt-0.5 truncate text-xs text-nicchyo-ink/70">
                     {spot.key}
                     {spot.tags.length > 0 && ` ・ ${spot.tags.join(" / ")}`}
                   </p>
@@ -526,7 +526,7 @@ function SpotsPanel() {
                 <button
                   type="button"
                   onClick={() => startEdit(spot)}
-                  className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200"
+                  className="rounded-lg bg-nicchyo-ink/5 px-3 py-1.5 text-xs text-nicchyo-ink/70 hover:bg-nicchyo-ink/10"
                 >
                   編集
                 </button>
@@ -542,7 +542,7 @@ function SpotsPanel() {
                     <button
                       type="button"
                       onClick={() => setConfirmingKey(null)}
-                      className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200"
+                      className="rounded-lg bg-nicchyo-ink/5 px-3 py-1.5 text-xs text-nicchyo-ink/70 hover:bg-nicchyo-ink/10"
                     >
                       やめる
                     </button>

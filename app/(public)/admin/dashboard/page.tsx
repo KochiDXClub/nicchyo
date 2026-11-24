@@ -257,11 +257,11 @@ export default async function AdminDashboardPage() {
         {/* 対応が必要なこと：この画面で最初に見せるもの */}
         <section aria-labelledby="todo-heading">
           <div className="mb-3 flex items-baseline justify-between gap-3">
-            <h2 id="todo-heading" className="text-base font-bold text-slate-900">
+            <h2 id="todo-heading" className="text-base font-bold text-nicchyo-ink">
               対応が必要なこと
             </h2>
             {pendingTodos.length > 0 && (
-              <span className="text-[13px] text-slate-500">{pendingTodos.length}件</span>
+              <span className="text-[13px] text-nicchyo-ink/70">{pendingTodos.length}件</span>
             )}
           </div>
 
@@ -273,26 +273,26 @@ export default async function AdminDashboardPage() {
               </p>
             </div>
           ) : (
-            <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white">
               {pendingTodos.map((todo) => {
                 const Icon = todo.icon;
                 return (
                   <li key={todo.key}>
                     <Link
                       href={todo.href}
-                      className="group flex items-center gap-3 px-5 py-4 transition-colors hover:bg-slate-50"
+                      className="group flex items-center gap-3 px-5 py-4 transition-colors hover:bg-nicchyo-ink/5"
                     >
                       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-50 text-amber-600">
                         <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
                       </span>
-                      <span className="min-w-0 flex-1 text-sm font-medium text-slate-800">
+                      <span className="min-w-0 flex-1 text-sm font-medium text-nicchyo-ink">
                         {todo.label}
                       </span>
                       <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-[12px] font-semibold tabular-nums text-amber-900">
                         {todo.valueLabel ?? `${todo.count}件`}
                       </span>
                       <ArrowRight
-                        className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-slate-500"
+                        className="h-4 w-4 shrink-0 text-nicchyo-ink/40 transition-colors group-hover:text-nicchyo-ink/70"
                         aria-hidden="true"
                       />
                     </Link>
@@ -306,12 +306,12 @@ export default async function AdminDashboardPage() {
         {/* 全体の規模感。詳しい推移はアナリティクスへ */}
         <section className="mt-8" aria-labelledby="stats-heading">
           <div className="mb-3 flex items-baseline justify-between gap-3">
-            <h2 id="stats-heading" className="text-base font-bold text-slate-900">
+            <h2 id="stats-heading" className="text-base font-bold text-nicchyo-ink">
               いまの登録状況
             </h2>
             <Link
               href="/admin/analytics"
-              className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-900"
+              className="inline-flex items-center gap-1 text-[13px] font-medium text-nicchyo-ink/70 transition-colors hover:text-nicchyo-ink"
             >
               アクセス分析を見る
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -326,22 +326,22 @@ export default async function AdminDashboardPage() {
 
         {/* 最近の動き */}
         <section className="mt-8" aria-labelledby="recent-activity">
-          <h2 id="recent-activity" className="mb-3 text-base font-bold text-slate-900">
+          <h2 id="recent-activity" className="mb-3 text-base font-bold text-nicchyo-ink">
             最近の動き
           </h2>
-          <div className="rounded-xl border border-slate-200 bg-white">
+          <div className="rounded-xl border border-line bg-white">
             {recentActivities.length === 0 ? (
-              <p className="px-5 py-8 text-sm text-slate-500">
+              <p className="px-5 py-8 text-sm text-nicchyo-ink/70">
                 表示できる最新の動きはまだありません。
               </p>
             ) : (
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-line">
                 {recentActivities.map((activity) => (
                   <li key={activity.id} className="flex items-start gap-3 px-5 py-3.5">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" aria-hidden="true" />
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-nicchyo-ink/20" aria-hidden="true" />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm text-slate-800">{activity.text}</span>
-                      <span className="mt-0.5 block text-xs text-slate-400">
+                      <span className="block text-sm text-nicchyo-ink">{activity.text}</span>
+                      <span className="mt-0.5 block text-xs text-nicchyo-ink/55">
                         {formatDateTime(activity.timestamp)}
                       </span>
                     </span>
