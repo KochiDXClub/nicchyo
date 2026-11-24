@@ -6,6 +6,7 @@ import {
 import type { MapRouteConfig, MapRoutePoint } from "../../map/types/mapRoute";
 import { NEW_VENDOR_ID_PREFIX } from "../../map/types/editableShop";
 import type { ChomeBoundary, ChomeSection } from "@/lib/map/chomeBoundaries";
+import type { MarketArea } from "@/lib/market/marketAreas";
 import { createProjection } from "./geo";
 import type { EntityChange } from "./editHistory";
 import type {
@@ -45,6 +46,8 @@ async function fetchMapLayout() {
     mapSettingsLimits?: MapSettingsLimits;
     /** 丁目の境目と区間（古い API・マイグレーション前は無い／空） */
     chome?: { boundaries?: ChomeBoundary[]; sections?: ChomeSection[] };
+    /** 市ごとの丁目（古い API・マイグレーション前は無い／空） */
+    marketAreas?: MarketArea[];
   }>;
 }
 
@@ -114,6 +117,7 @@ export function useMapEditData({
   const [mapSettingsLimits, setMapSettingsLimits] = useState<MapSettingsLimits>(DEFAULT_MAP_SETTINGS_LIMITS);
   const [chomeBoundaries, setChomeBoundaries] = useState<ChomeBoundary[]>([]);
   const [chomeSections, setChomeSections] = useState<ChomeSection[]>([]);
+  const [marketAreas, setMarketAreas] = useState<MarketArea[]>([]);
 
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
   const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
@@ -136,6 +140,7 @@ export function useMapEditData({
     setFieldObservationsUnavailable(nextData.fieldObservationsUnavailable === true);
     setChomeBoundaries(nextData.chome?.boundaries ?? []);
     setChomeSections(nextData.chome?.sections ?? []);
+    setMarketAreas(nextData.marketAreas ?? []);
     clearPending?.();
   }, [clearPending]);
 
@@ -163,6 +168,7 @@ export function useMapEditData({
         if (data.mapSettingsLimits) setMapSettingsLimits(data.mapSettingsLimits);
         setChomeBoundaries(data.chome?.boundaries ?? []);
         setChomeSections(data.chome?.sections ?? []);
+        setMarketAreas(data.marketAreas ?? []);
 
         const allPoints = nextRoads.flatMap((road) => road.points);
         const center = getRouteCenter(allPoints);
@@ -294,6 +300,7 @@ export function useMapEditData({
     mapSettingsLimits,
     chomeBoundaries,
     chomeSections,
+    marketAreas,
     hasUnsavedChanges,
     handleSave,
     projection,
