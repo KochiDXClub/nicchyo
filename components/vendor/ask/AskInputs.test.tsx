@@ -162,3 +162,23 @@ describe("店舗写真の入力（全周写真のサムネイルの切り直し�
     expect(screen.queryByRole("button", { name: "サムネイルの切り取り位置を変える" })).toBeNull();
   });
 });
+
+describe("SNS の ID 入力欄（X・インスタ）はパスワード管理に拾われない", () => {
+  it.each(["x", "instagram"] as const)("%s の入力欄は autocomplete を切り、拡張機能の対象外にする", (id) => {
+    render(
+      <AskInput
+        question={ASK_QUESTION_BY_ID.get(id)!}
+        snapshot={{} as VendorAskSnapshot}
+        saving={false}
+        onSubmit={() => {}}
+        onSkip={() => {}}
+      />,
+    );
+    const input = screen.getByRole("textbox");
+    expect(input).toHaveAttribute("autocomplete", "off");
+    expect(input).toHaveAttribute("spellcheck", "false");
+    expect(input).toHaveAttribute("data-1p-ignore");
+    expect(input).toHaveAttribute("data-lpignore", "true");
+    expect(input.getAttribute("name")).not.toMatch(/pass|pwd|password/i);
+  });
+});

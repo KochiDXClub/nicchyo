@@ -290,6 +290,17 @@ function SingleLineInput({
         onChange={(event) => setValue(event.target.value)}
         placeholder={question.placeholder}
         aria-label={kind === "url" ? "webサイトのURL" : isX ? "XのID" : "インスタグラムのID"}
+        /* SNSのIDはログイン情報ではないので、パスワード管理（iOSのパスワード候補・拡張機能）に拾わせない */
+        {...(kind === "handle"
+          ? {
+              name: isX ? "x-handle" : "instagram-handle",
+              autoComplete: "off",
+              spellCheck: false,
+              "data-1p-ignore": true,
+              "data-lpignore": "true",
+              "data-bwignore": "true",
+            }
+          : {})}
         autoCapitalize="none"
         autoCorrect="off"
         inputMode={kind === "url" ? "url" : "text"}
