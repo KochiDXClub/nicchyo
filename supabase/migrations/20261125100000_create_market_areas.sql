@@ -29,14 +29,17 @@ on conflict (market_id, label) do nothing;
 
 alter table public.market_areas enable row level security;
 
--- 公開されている市の丁目は誰でも見られる。非公開の市の丁目は管理者だけが見られる。
+-- 公開されている市の丁目は誰でも見られる。
+-- 非公開の市の丁目は管理者だけが見られる（current_user_role() を使う方は to authenticated に限定する）。
 -- 書き込みは管理画面の API（service role）だけが行う。
-create policy "market_areas_select_public_or_admin"
+create policy "market_areas_select_public"
   on public.market_areas for select
-  using (
-    market_id in (select id from public.markets where is_public)
-    or (select public.current_user_role()) = 'admin'
-  );
+  using (market_id in (select id from public.markets where is_public));
+
+create policy "market_areas_select_admin"
+  on public.market_areas for select
+  to authenticated
+  using ((select public.current_user_role()) = 'admin');
 
 grant select on public.market_areas to anon, authenticated;
 
