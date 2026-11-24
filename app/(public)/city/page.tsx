@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AdminPageHeader } from "@/components/admin";
 import { CityMarketDays } from "./CityMarketDays";
 import { CitySummary } from "./CitySummary";
+import { CityVendorIntention } from "./CityVendorIntention";
 
 export const metadata: Metadata = {
   title: "高知市のページ",
@@ -18,6 +19,7 @@ export default function CityPage() {
       <div className="mx-auto max-w-7xl px-4 py-8">
         <div className="space-y-8">
           <CityMarketDays />
+          <CityVendorIntention />
           <CitySummary />
         </div>
       </div>
