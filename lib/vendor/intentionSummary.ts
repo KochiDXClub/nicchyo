@@ -3,8 +3,8 @@
  *
  * 少数の回答から個人の店が分かるのを防ぐため、件数が MIN_REPORTABLE 未満のものは伏せる（null）。
  *   - 回答者全体が MIN_REPORTABLE 未満なら、回答者数も含めてすべて伏せる
- *   - 区画数・頻度のように合計が回答者数になる項目では、伏せた1つを合計から逆算されないよう、
- *     もう1つ（いちばん小さい項目）も伏せる（相補的な伏せ）
+ *   - 区画数・頻度のように合計が回答者数になる項目では、伏せた項目があれば、表示中のいちばん小さい項目も伏せる
+ *     （伏せた項目の合計が残りの項目から逆算されないように）
  *   - 0 件は伏せない（何も分からないため）
  */
 import {
@@ -42,11 +42,12 @@ function isReportable(count: number): boolean {
   return count === 0 || count >= INTENTION_MIN_REPORTABLE;
 }
 
-/** 合計が回答者数になる項目を作る。伏せた項目が1つだけなら、いちばん小さい項目も伏せる */
+/** 合計が回答者数になる項目を作る。伏せた項目があれば、表示中のいちばん小さい項目も伏せる */
 function exclusiveCells<K>(keys: readonly K[], tally: Map<K, number>): IntentionCell<K>[] {
   const counts = keys.map((key) => ({ key, count: tally.get(key) ?? 0 }));
   const hide = new Set<K>(counts.filter((c) => !isReportable(c.count)).map((c) => c.key));
-  if (hide.size === 1) {
+  if (hide.size >= 1) {
+    // 伏せた項目の合計は、残りの項目から逆算できてしまうため、表示中の最小の項目も伏せる（2 つ以上伏せた場合も同じ）
     const candidates = counts.filter((c) => !hide.has(c.key) && c.count > 0);
     if (candidates.length > 0) {
       hide.add(candidates.reduce((a, b) => (b.count < a.count ? b : a)).key);
