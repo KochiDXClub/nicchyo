@@ -139,4 +139,30 @@ describe("useAdminNotifications", () => {
     expect(result.current.unreadCount).toBe(0);
     expect(result.current.notifications.every(n => n.is_read)).toBe(true);
   });
+
+  test("タブが見えていない間は定期取得をせず、戻ったときに1回取り直す", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ notifications: mockNotifications }),
+    } as Response);
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+
+    renderHook(() => useAdminNotifications(true));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1), { timeout: 1000 });
+
+    // 10分間、タブが裏にある
+    await act(async () => {
+      vi.advanceTimersByTime(10 * 60_000);
+    });
+    process.stdout.write(`[measure] notifications requests while hidden for 10 minutes: ${vi.mocked(global.fetch).mock.calls.length - 1}\n`);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    // 表示に戻ったら、1回だけ取り直す
+    visibility.mockReturnValue("visible");
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    visibility.mockRestore();
+  });
 });
