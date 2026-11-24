@@ -149,14 +149,14 @@ export default function NewVendorInquiryPage() {
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <Link
             href="/vendor/inquiries"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-nicchyo-ink/70 transition hover:bg-nicchyo-ink/5"
             aria-label="連絡の一覧へ戻る"
           >
             <ArrowLeft size={18} />
           </Link>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">New Contact</p>
-            <h1 className="text-xl font-bold text-slate-900">新しく連絡する</h1>
+            <h1 className="text-xl font-bold text-nicchyo-ink">新しく連絡する</h1>
           </div>
         </div>
       </div>
@@ -167,8 +167,8 @@ export default function NewVendorInquiryPage() {
 
         {/* 2. 用件を選ぶ */}
         {category && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-base font-semibold text-slate-700">どんな用件ですか？</h2>
+          <section className="rounded-3xl border border-line bg-white p-4 shadow-sm">
+            <h2 className="text-base font-semibold text-nicchyo-ink">どんな用件ですか？</h2>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               {VENDOR_INQUIRY_TOPICS.map((t) => {
                 const meta = TOPIC_LABELS[t];
@@ -186,12 +186,12 @@ export default function NewVendorInquiryPage() {
                     className={`rounded-2xl border px-3 py-3 text-left transition ${
                       selected
                         ? "border-amber-300 bg-amber-50 shadow-sm"
-                        : "border-slate-200 bg-white hover:border-amber-200 hover:bg-amber-50/50"
+                        : "border-line bg-white hover:border-amber-200 hover:bg-amber-50/50"
                     }`}
                   >
                     <span className="text-xl" aria-hidden="true">{meta.emoji}</span>
-                    <span className="mt-1 block text-sm font-bold text-slate-900">{meta.label}</span>
-                    <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">{meta.description}</span>
+                    <span className="mt-1 block text-sm font-bold text-nicchyo-ink">{meta.label}</span>
+                    <span className="mt-0.5 block text-[11px] leading-relaxed text-nicchyo-ink/70">{meta.description}</span>
                   </button>
                 );
               })}
@@ -201,8 +201,8 @@ export default function NewVendorInquiryPage() {
 
         {/* 3. 報告・連絡なら定型パターンを選ぶ */}
         {category && topic === "report" && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-base font-semibold text-slate-700">何についての報告ですか？</h2>
+          <section className="rounded-3xl border border-line bg-white p-4 shadow-sm">
+            <h2 className="text-base font-semibold text-nicchyo-ink">何についての報告ですか？</h2>
             <div className="mt-3 space-y-2">
               {REPORT_PATTERNS.map((p) => {
                 const selected = patternId === p.id;
@@ -218,7 +218,7 @@ export default function NewVendorInquiryPage() {
                     className={`flex w-full items-center rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
                       selected
                         ? "border-amber-300 bg-amber-50 text-amber-900 shadow-sm"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-amber-200 hover:bg-amber-50/50"
+                        : "border-line bg-white text-nicchyo-ink hover:border-amber-200 hover:bg-amber-50/50"
                     }`}
                   >
                     {p.label}
@@ -232,7 +232,7 @@ export default function NewVendorInquiryPage() {
               <div className="mt-4 space-y-3 rounded-2xl bg-amber-50/60 p-4">
                 {pattern.fields.map((field) => (
                   <label key={field.name} className="block">
-                    <span className="block text-sm font-semibold text-slate-700">
+                    <span className="block text-sm font-semibold text-nicchyo-ink">
                       {field.label}
                       {field.required && <span className="ml-1 text-rose-500">*</span>}
                     </span>
@@ -242,7 +242,7 @@ export default function NewVendorInquiryPage() {
                         onChange={(e) => setPatternValues((v) => ({ ...v, [field.name]: e.target.value }))}
                         placeholder={field.placeholder}
                         rows={3}
-                        className="mt-1.5 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-800 outline-none focus:ring-2 focus:ring-amber-300"
+                        className="mt-1.5 w-full resize-none rounded-2xl border border-line bg-white px-4 py-3 text-base text-nicchyo-ink outline-none focus:ring-2 focus:ring-amber-300"
                       />
                     ) : (
                       <input
@@ -250,7 +250,7 @@ export default function NewVendorInquiryPage() {
                         value={patternValues[field.name] ?? ""}
                         onChange={(e) => setPatternValues((v) => ({ ...v, [field.name]: e.target.value }))}
                         placeholder={field.placeholder}
-                        className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-800 outline-none focus:ring-2 focus:ring-amber-300"
+                        className="mt-1.5 w-full rounded-2xl border border-line bg-white px-4 py-3 text-base text-nicchyo-ink outline-none focus:ring-2 focus:ring-amber-300"
                       />
                     )}
                   </label>
@@ -262,12 +262,12 @@ export default function NewVendorInquiryPage() {
 
         {/* 4. 本文 */}
         {category && topic && (topic !== "report" || pattern) && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="rounded-3xl border border-line bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-700">
+              <h2 className="text-base font-semibold text-nicchyo-ink">
                 {topic === "report" ? "補足があれば（任意）" : "内容"}
               </h2>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-nicchyo-ink/55">
                 {composedBody.length} / {VENDOR_INQUIRY_BODY_MAX_LENGTH}
               </span>
             </div>
@@ -278,7 +278,7 @@ export default function NewVendorInquiryPage() {
               placeholder={
                 topic === "report" ? "補足したいことがあれば書いてください" : PLACEHOLDER_BY_CATEGORY[category][topic]
               }
-              className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-relaxed text-slate-800 outline-none focus:ring-2 focus:ring-amber-300"
+              className="mt-2 w-full resize-none rounded-2xl border border-line bg-nicchyo-ink/5 px-4 py-4 text-base leading-relaxed text-nicchyo-ink outline-none focus:ring-2 focus:ring-amber-300"
             />
             {composedBody.length > VENDOR_INQUIRY_BODY_MAX_LENGTH && (
               <p className="mt-2 text-sm text-rose-600">
@@ -289,7 +289,7 @@ export default function NewVendorInquiryPage() {
             {/* 画像添付 */}
             <div className="mt-4">
               {imagePreview ? (
-                <div className="relative overflow-hidden rounded-2xl border border-slate-200">
+                <div className="relative overflow-hidden rounded-2xl border border-line">
                   <Image
                     src={imagePreview}
                     alt="添付する画像"
@@ -308,7 +308,7 @@ export default function NewVendorInquiryPage() {
                   </button>
                 </div>
               ) : (
-                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 py-4 text-sm font-semibold text-slate-500 transition hover:border-amber-300 hover:bg-amber-50/50">
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-nicchyo-ink/20 bg-nicchyo-ink/5 py-4 text-sm font-semibold text-nicchyo-ink/70 transition hover:border-amber-300 hover:bg-amber-50/50">
                   <ImagePlus size={18} />
                   写真を添える（任意）
                   <input
@@ -325,8 +325,8 @@ export default function NewVendorInquiryPage() {
 
         {/* 5. 急ぎ具合 */}
         {category && topic && (topic !== "report" || pattern) && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-base font-semibold text-slate-700">どのくらい急ぎですか？</h2>
+          <section className="rounded-3xl border border-line bg-white p-4 shadow-sm">
+            <h2 className="text-base font-semibold text-nicchyo-ink">どのくらい急ぎですか？</h2>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               {VENDOR_INQUIRY_URGENCIES.map((u) => {
                 const meta = URGENCY_LABELS[u];
@@ -340,11 +340,11 @@ export default function NewVendorInquiryPage() {
                     className={`rounded-2xl border px-3 py-3 text-left transition ${
                       selected
                         ? "border-amber-300 bg-amber-50 shadow-sm"
-                        : "border-slate-200 bg-white hover:border-amber-200 hover:bg-amber-50/50"
+                        : "border-line bg-white hover:border-amber-200 hover:bg-amber-50/50"
                     }`}
                   >
-                    <span className="block text-sm font-bold text-slate-900">{meta.label}</span>
-                    <span className="mt-0.5 block text-[11px] text-slate-500">{meta.description}</span>
+                    <span className="block text-sm font-bold text-nicchyo-ink">{meta.label}</span>
+                    <span className="mt-0.5 block text-[11px] text-nicchyo-ink/70">{meta.description}</span>
                   </button>
                 );
               })}
@@ -368,7 +368,7 @@ export default function NewVendorInquiryPage() {
           type="button"
           onClick={handleSubmit}
           disabled={!canSubmit}
-          className="flex w-full items-center justify-center gap-2 rounded-3xl bg-amber-500 py-4 text-base font-bold text-white shadow transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+          className="flex w-full items-center justify-center gap-2 rounded-3xl bg-amber-500 py-4 text-base font-bold text-white shadow transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-nicchyo-ink/10 disabled:text-nicchyo-ink/55"
         >
           {isSending ? (
             <>

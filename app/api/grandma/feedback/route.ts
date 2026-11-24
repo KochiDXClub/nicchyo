@@ -1,8 +1,7 @@
 import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createTypedAdminClient } from "@/lib/supabase/adminClient";
 import { z } from "zod";
-import type { Database } from "@/types/database.types";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { maskPii } from "@/lib/privacy/maskPii";
@@ -37,15 +36,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
+  const supabase = createTypedAdminClient();
+  if (!supabase) {
     return NextResponse.json({ message: "Server configuration error" }, { status: 500 });
   }
-
-  const supabase = createClient<Database>(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
 
   const { data } = parsed;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

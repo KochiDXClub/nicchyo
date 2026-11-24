@@ -20,7 +20,7 @@ const STATUS_COLORS: Record<InquiryStatus, string> = {
   open: "bg-red-100 text-red-800",
   in_progress: "bg-yellow-100 text-yellow-800",
   resolved: "bg-green-100 text-green-800",
-  closed: "bg-gray-100 text-gray-600",
+  closed: "bg-nicchyo-ink/5 text-nicchyo-ink/70",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -109,7 +109,7 @@ export default function AdminInquiriesPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as InquiryStatus | "all")}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+          className="rounded-lg border border-line px-3 py-1.5 text-sm"
         >
           <option value="all">すべてのステータス</option>
           {(Object.entries(STATUS_LABELS) as [InquiryStatus, string][]).map(([value, label]) => (
@@ -120,7 +120,7 @@ export default function AdminInquiriesPage() {
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+          className="rounded-lg border border-line px-3 py-1.5 text-sm"
         >
           <option value="all">すべてのカテゴリ</option>
           {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
@@ -131,7 +131,7 @@ export default function AdminInquiriesPage() {
 
       {/* 問い合わせ一覧 */}
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-slate-400">読み込み中...</div>
+        <div className="flex items-center justify-center py-16 text-nicchyo-ink/55">読み込み中...</div>
       ) : inquiries.length === 0 ? (
         <EmptyState title="該当する問い合わせはありません" />
       ) : (
@@ -139,7 +139,7 @@ export default function AdminInquiriesPage() {
           {inquiries.map((inquiry) => (
             <div
               key={inquiry.id}
-              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="rounded-xl border border-line bg-white p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -147,13 +147,13 @@ export default function AdminInquiriesPage() {
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_COLORS[inquiry.status]}`}>
                       {STATUS_LABELS[inquiry.status]}
                     </span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                    <span className="rounded-full bg-nicchyo-ink/5 px-2 py-0.5 text-xs text-nicchyo-ink/70">
                       {CATEGORY_LABELS[inquiry.category] ?? inquiry.category}
                     </span>
                   </div>
 
                   <div className="mt-2 flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-800">
+                    <span className="text-sm font-medium text-nicchyo-ink">
                       {inquiry.name ?? "匿名"}
                     </span>
                     <a
@@ -164,17 +164,17 @@ export default function AdminInquiriesPage() {
                     </a>
                   </div>
 
-                  <p className="mt-2 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                  <p className="mt-2 text-sm text-nicchyo-ink leading-relaxed whitespace-pre-wrap">
                     {inquiry.message}
                   </p>
 
                   {inquiry.reply_notes && (
-                    <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    <p className="mt-2 rounded-lg bg-nicchyo-ink/5 px-3 py-2 text-xs text-nicchyo-ink/70">
                       対応メモ: {inquiry.reply_notes}
                     </p>
                   )}
 
-                  <div className="mt-2 text-xs text-slate-400">
+                  <div className="mt-2 text-xs text-nicchyo-ink/55">
                     {new Date(inquiry.created_at).toLocaleString("ja-JP")}
                   </div>
                 </div>
@@ -203,7 +203,7 @@ export default function AdminInquiriesPage() {
                       type="button"
                       onClick={() => void handleStatusChange(inquiry, "closed")}
                       disabled={updating}
-                      className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-200 disabled:opacity-40"
+                      className="rounded-lg bg-nicchyo-ink/5 px-3 py-1.5 text-xs font-semibold text-nicchyo-ink/70 hover:bg-nicchyo-ink/10 disabled:opacity-40"
                     >
                       クローズ
                     </button>
@@ -225,8 +225,8 @@ export default function AdminInquiriesPage() {
             className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="font-bold text-slate-900">解決済みにする</h2>
-            <p className="mt-1 text-xs text-slate-500">
+            <h2 className="font-bold text-nicchyo-ink">解決済みにする</h2>
+            <p className="mt-1 text-xs text-nicchyo-ink/70">
               {selectedInquiry.name ?? selectedInquiry.email} からの問い合わせを解決済みとしてマークします。
             </p>
             <textarea
@@ -235,7 +235,7 @@ export default function AdminInquiriesPage() {
               placeholder="対応内容メモ（任意）"
               rows={4}
               maxLength={1000}
-              className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
+              className="mt-3 w-full rounded-xl border border-line px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
             />
             <div className="mt-4 flex gap-2">
               <button
@@ -250,7 +250,7 @@ export default function AdminInquiriesPage() {
                 type="button"
                 onClick={() => setSelectedInquiry(null)}
                 disabled={updating}
-                className="flex-1 rounded-xl bg-slate-100 py-2 text-sm font-medium text-slate-700"
+                className="flex-1 rounded-xl bg-nicchyo-ink/5 py-2 text-sm font-medium text-nicchyo-ink"
               >
                 キャンセル
               </button>

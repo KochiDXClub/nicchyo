@@ -88,6 +88,7 @@ import {
   buildFavoriteBadgeSprite,
   buildNameplateSprite,
   buildStallSprites,
+  PHOTO_STALL_PX,
   rasterizeImageUrl,
   rasterizeStallWithPhoto,
   STALL_STATES,
@@ -258,8 +259,6 @@ function buildLandmarkFeatures(
 }
 const IMG_NAMEPLATE = "nameplate-bg";
 const IMG_BADGE_FAVORITE = "badge:favorite";
-/** 写真入りの屋台の大きさ（通常の屋台は 60px。本体の写真が見えるよう一回り大きくする） */
-const PHOTO_STALL_PX = 84;
 const TEXT_FONT = ["Noto Sans Bold"];
 
 function buildRasterStyle(tileOpacityByZoom: boolean, minZoom: number): StyleSpecification {
