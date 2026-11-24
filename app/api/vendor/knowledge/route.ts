@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { createAdminClientOrThrow } from "@/lib/supabase/adminClient";
 import { z } from "zod";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
@@ -65,8 +65,6 @@ export async function POST(request: Request) {
     }
     const { content } = parsed.data;
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const openaiKey = process.env.OPENAI_API_KEY;
 
     // embedding生成
@@ -84,8 +82,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // サービスロールで保存（RLS回避）
-    const serviceClient = createServiceClient(supabaseUrl!, serviceRoleKey!);
+    // サービスロールで保存（RLS回避）。env 未設定なら例外になり、外側の catch で保存失敗として返す
+    const serviceClient = createAdminClientOrThrow();
 
     // 既存レコードがあれば更新、なければ挿入
     const { data: existing } = await serviceClient

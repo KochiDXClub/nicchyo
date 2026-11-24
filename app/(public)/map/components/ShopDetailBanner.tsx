@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   Heart,
-  ChevronDown,
   ChevronRight,
   X as XIcon,
   Sparkles,
@@ -492,7 +491,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                   className="flex h-8 w-16 items-center justify-center"
                   aria-label="ドロワーを展開"
                 >
-                  <span className="h-1.5 w-10 rounded-full bg-slate-300" />
+                  <span className="h-1.5 w-10 rounded-full bg-nicchyo-ink/20" />
                 </button>
               </div>
               <button
@@ -516,26 +515,26 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           )}
 
           {showMobileDetailControls && (
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-start justify-center px-4 pt-3">
+            <div className="relative z-40 flex h-11 shrink-0 items-center justify-center bg-white px-4">
               <button
                 type="button"
                 onClick={handleDrawerHandleClick}
-                className="pointer-events-auto flex h-8 w-16 items-center justify-center"
+                className="flex h-8 w-16 items-center justify-center"
                 aria-label="ドロワーをたたむ"
                 onTouchStart={handleDrawerTouchStart}
                 onTouchMove={handleDrawerTouchMove}
                 onTouchEnd={handleDrawerTouchEnd}
                 onTouchCancel={handleDrawerTouchEnd}
               >
-                <span className="h-1.5 w-10 rounded-full bg-white/80 shadow-sm backdrop-blur-sm" />
+                <span className="h-1.5 w-10 rounded-full bg-nicchyo-ink/20" />
               </button>
               <button
-                onClick={handleDrawerHandleClick}
-                className="pointer-events-auto absolute right-8 top-8 z-40 flex h-9 w-9 items-center justify-center rounded-full bg-black/35 text-white shadow backdrop-blur-sm transition hover:bg-black/50"
                 type="button"
-                aria-label="展開をたたむ"
+                onClick={onClose}
+                className="absolute right-4 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-nicchyo-ink/[0.06] text-nicchyo-ink/70 transition hover:bg-nicchyo-ink/10"
+                aria-label="閉じる"
               >
-                <ChevronDown className="h-4 w-4" />
+                <XIcon className="h-4 w-4" />
               </button>
             </div>
           )}

@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createTypedAdminClient } from "@/lib/supabase/adminClient";
 import { z } from "zod";
-import type { Database } from "@/types/database.types";
-import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { handleAbuseDetection } from "@/lib/grandma/abuseDetection";
@@ -113,10 +111,9 @@ export async function POST(request: Request) {
       .map((h) => `${h.role}: ${stripAngleBrackets(h.text)}`)
       .join("\n");
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabase = createTypedAdminClient();
     const openaiKey = process.env.OPENAI_API_KEY;
-    if (!supabaseUrl || !serviceRoleKey || !openaiKey) {
+    if (!supabase || !openaiKey) {
       return NextResponse.json({ error: "server config missing" }, { status: 500 });
     }
 
@@ -124,9 +121,8 @@ export async function POST(request: Request) {
     // これが無いと ask でブロック済みの利用者が itinerary 経由で
     // 有料 LLM 呼び出し（embedding + chat）を継続できてしまう。
     const visitorKey = parsed.data.visitorKey?.trim() || undefined;
-    const secClient = createClient<DatabaseWithExtensions>(supabaseUrl, serviceRoleKey);
     const clientIp = getForwardedClientIp(request);
-    const abuseResult = await handleAbuseDetection(secClient, clientIp, interest, visitorKey);
+    const abuseResult = await handleAbuseDetection(supabase, clientIp, interest, visitorKey);
     if (abuseResult === "blocked") {
       return NextResponse.json(
         { error: "申し訳ありませんが、このアクセスはご利用いただけません。" },
@@ -156,7 +152,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "embedding not found" }, { status: 500 });
     }
 
-    const supabase = createClient<Database>(supabaseUrl, serviceRoleKey);
     const { data: vectorMatches } = await supabase
       .rpc("match_vendor_embeddings", {
         query_embedding: embedding as unknown as string,

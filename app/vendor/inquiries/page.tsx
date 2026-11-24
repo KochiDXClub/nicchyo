@@ -13,7 +13,7 @@ import InquiryErrorNotice from "./components/InquiryErrorNotice";
 import { CATEGORY_LABELS, TOPIC_LABELS, statusLabel } from "@/lib/vendorInquiries/labels";
 
 const TONE_CLASSES = {
-  waiting: "bg-slate-100 text-slate-600",
+  waiting: "bg-nicchyo-ink/5 text-nicchyo-ink/70",
   progress: "bg-amber-100 text-amber-700",
   done: "bg-emerald-100 text-emerald-700",
 } as const;
@@ -69,7 +69,7 @@ export default function VendorInquiriesPage() {
   return (
     <div className="min-h-screen bg-[#FFFAF0] pb-24">
       <div className="px-4 pt-6">
-        <h1 className="mx-auto max-w-2xl text-xl font-bold text-slate-900">運営・市役所との連絡</h1>
+        <h1 className="mx-auto max-w-2xl text-xl font-bold text-nicchyo-ink">運営・市役所との連絡</h1>
       </div>
 
       <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
@@ -91,10 +91,10 @@ export default function VendorInquiriesPage() {
         {isLoading ? (
           <CenteredLoading size={24} padding="py-10" />
         ) : inquiries.length === 0 ? (
-          <div className="rounded-3xl border border-slate-200 bg-white px-4 py-10 text-center shadow-sm">
-            <Inbox size={32} className="mx-auto text-slate-300" />
-            <p className="mt-3 text-sm font-semibold text-slate-600">まだ連絡はありません</p>
-            <p className="mt-1 text-sm leading-relaxed text-slate-500">
+          <div className="rounded-3xl border border-line bg-white px-4 py-10 text-center shadow-sm">
+            <Inbox size={32} className="mx-auto text-nicchyo-ink/40" />
+            <p className="mt-3 text-sm font-semibold text-nicchyo-ink/70">まだ連絡はありません</p>
+            <p className="mt-1 text-sm leading-relaxed text-nicchyo-ink/70">
               聞きたいこと・伝えたいことがあれば、上のボタンから送れます。
             </p>
           </div>
@@ -107,19 +107,19 @@ export default function VendorInquiriesPage() {
                 <Link
                   key={inquiry.id}
                   href={`/vendor/inquiries/${inquiry.id}`}
-                  className="flex items-start gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-amber-200 hover:bg-amber-50/40"
+                  className="flex items-start gap-3 rounded-3xl border border-line bg-white p-4 shadow-sm transition hover:border-amber-200 hover:bg-amber-50/40"
                 >
                   <span className="mt-0.5 text-2xl" aria-hidden="true">{topic.emoji}</span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-bold text-slate-900">{topic.label}</span>
+                      <span className="text-sm font-bold text-nicchyo-ink">{topic.label}</span>
                       <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${TONE_CLASSES[status.tone]}`}>
                         {status.label}
                       </span>
-                      <span className="text-[11px] text-slate-400">{CATEGORY_LABELS[inquiry.category]}へ</span>
+                      <span className="text-[11px] text-nicchyo-ink/55">{CATEGORY_LABELS[inquiry.category]}へ</span>
                     </div>
-                    <p className="mt-1.5 truncate text-sm text-slate-600">{summarize(inquiry.body)}</p>
-                    <p className="mt-1 text-[11px] text-slate-400">{formatDate(inquiry.created_at)}</p>
+                    <p className="mt-1.5 truncate text-sm text-nicchyo-ink/70">{summarize(inquiry.body)}</p>
+                    <p className="mt-1 text-[11px] text-nicchyo-ink/55">{formatDate(inquiry.created_at)}</p>
                   </div>
                   <ChevronRight size={16} className="mt-1 shrink-0 text-amber-300" />
                 </Link>

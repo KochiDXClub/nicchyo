@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database.types";
+import { createTypedAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { todayJstString } from "@/lib/time/jstDate";
@@ -37,22 +36,14 @@ export async function GET(request: NextRequest) {
   });
   if (rateLimited) return rateLimited;
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabase = createTypedAdminClient();
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!supabase) {
     return NextResponse.json(
       { ok: false, skipped: true, reason: "supabase_env_missing" },
       { status: 503 }
     );
   }
-
-  const supabase = createClient<Database>(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
 
   const todayIso = todayJstString();
   const weekStartIso = getWeekStartIso(todayIso);

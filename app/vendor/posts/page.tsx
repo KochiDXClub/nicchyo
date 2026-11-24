@@ -41,7 +41,7 @@ function StatusBadge({ status }: { status: PostStatus }) {
     );
   }
   return (
-    <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+    <span className="flex items-center gap-1 rounded-full bg-nicchyo-ink/5 px-2 py-0.5 text-[10px] font-medium text-nicchyo-ink/70">
       <XCircle size={10} />期限切れ
     </span>
   );
@@ -49,37 +49,37 @@ function StatusBadge({ status }: { status: PostStatus }) {
 
 function PostCard({ post, onRepost, onEditRepost }: { post: Post; onRepost: (post: Post) => void; onEditRepost: (post: Post) => void }) {
   return (
-    <div className={`rounded-3xl border bg-white p-4 shadow-sm transition ${post.status === "active" ? "border-amber-100" : "border-slate-200"}`}>
+    <div className={`rounded-3xl border bg-white p-4 shadow-sm transition ${post.status === "active" ? "border-amber-100" : "border-line"}`}>
       <div className="flex items-start gap-3">
         {post.image_url ? (
-          <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100" style={{ backgroundImage: `url(${post.image_url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+          <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl bg-nicchyo-ink/5" style={{ backgroundImage: `url(${post.image_url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
         ) : (
-          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-300">
+          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl bg-nicchyo-ink/5 text-nicchyo-ink/40">
             <ImageIcon size={20} />
           </div>
         )}
         <div className="min-w-0 flex-1">
           {/* 写真だけの投稿（ひとこと無し）は空の段落を出さず、見分けられる文言にする */}
-          <p className={`line-clamp-3 text-sm leading-relaxed ${post.text ? "text-slate-800" : "text-slate-400"}`}>
+          <p className={`line-clamp-3 text-sm leading-relaxed ${post.text ? "text-nicchyo-ink" : "text-nicchyo-ink/55"}`}>
             {post.text || "写真だけの投稿"}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <StatusBadge status={post.status} />
-            <span className="flex items-center gap-1 text-[11px] text-slate-400">
+            <span className="flex items-center gap-1 text-[11px] text-nicchyo-ink/55">
               <Clock size={10} />{timeAgo(post.created_at)}
             </span>
           </div>
           <PostStatsRow post={post} />
         </div>
       </div>
-      <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row">
+      <div className="mt-3 flex flex-col gap-2 border-t border-line pt-3 sm:flex-row">
         <button type="button" onClick={() => onRepost(post)}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50 py-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
         >
           <RotateCcw size={13} />そのまま再投稿
         </button>
         <button type="button" onClick={() => onEditRepost(post)}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-line bg-nicchyo-ink/5 py-3 text-sm font-semibold text-nicchyo-ink/70 transition hover:bg-nicchyo-ink/5"
         >
           <Pencil size={13} />編集して再投稿
         </button>
@@ -362,13 +362,13 @@ export default function VendorPostsPage() {
             )}
 
             <h2 className="mb-3 text-sm font-bold text-nicchyo-ink/70">これまでの近況・もう一度出す</h2>
-            <div className="mb-4 flex gap-1.5 rounded-3xl border border-slate-200 bg-white p-1.5 shadow-sm">
+            <div className="mb-4 flex gap-1.5 rounded-3xl border border-line bg-white p-1.5 shadow-sm">
               {TABS.map((tab) => (
                 <button type="button" key={tab.key} onClick={() => setActiveTab(tab.key)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-2xl py-3 text-sm font-semibold transition ${activeTab === tab.key ? "bg-amber-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-2xl py-3 text-sm font-semibold transition ${activeTab === tab.key ? "bg-amber-500 text-white shadow-sm" : "text-nicchyo-ink/70 hover:text-nicchyo-ink"}`}
                 >
                   {tab.label}
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${activeTab === tab.key ? "bg-amber-400 text-white" : "bg-slate-100 text-slate-400"}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${activeTab === tab.key ? "bg-amber-400 text-white" : "bg-nicchyo-ink/5 text-nicchyo-ink/55"}`}>
                     {tab.count}
                   </span>
                 </button>
