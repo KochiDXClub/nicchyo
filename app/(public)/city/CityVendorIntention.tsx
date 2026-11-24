@@ -24,7 +24,7 @@ function CellList<K extends string | number>({
   label: (key: K) => string;
 }) {
   return (
-    <ul className="divide-y divide-nicchyo-ink/10">
+    <ul className="divide-y divide-line">
       {cells.map((cell) => (
         <li key={String(cell.key)} className="flex items-center justify-between gap-3 py-2 text-sm">
           <span className="text-nicchyo-ink">{label(cell.key)}</span>
@@ -72,7 +72,7 @@ export function CityVendorIntention() {
       )}
       {state.status === "ready" && !state.season && (
         <Surface padding="md">
-          <p className="text-sm text-nicchyo-ink/70">調査の季節がまだありません。</p>
+          <p className="text-sm text-nicchyo-ink/70">調査の季節がまだありません。運営が受付期間を登録すると、ここに集計が出ます。</p>
         </Surface>
       )}
       {state.status === "ready" && state.season && state.summary && (
@@ -101,7 +101,7 @@ export function CityVendorIntention() {
             <h3 className="mb-1 text-sm font-bold text-nicchyo-ink">出たい月</h3>
             <CellList cells={state.summary.months} label={(k) => `${k}月`} />
           </div>
-          <p className="text-xs text-nicchyo-ink/60">
+          <p className="text-xs text-nicchyo-ink/55">
             件数が{state.summary.minReportable}店未満の項目は伏せています。店ごとの回答は表示されません。
           </p>
         </Surface>
