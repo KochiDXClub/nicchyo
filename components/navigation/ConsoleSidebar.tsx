@@ -80,19 +80,28 @@ const FOOTER_ACTION_CLASS =
  * 文字は隠すだけで DOM には残すので、読み上げと title はそのまま働く。
  * 展開は本文の上に重なる（本文の余白はレールの幅のまま動かない）。
  */
+/**
+ * 展開・収納のなめらかな動き（Supabase に近づける）。文字は幅と透明度を、件数は位置を、
+ * 選択中の縦線は透明度を、それぞれ 200ms で動かす。ホバー・フォーカスが外れたら同じ速さで戻す。
+ * 動きは motion-reduce のときは止める。
+ */
+const RAIL_MOTION = "lg:transition-[max-width,max-height,opacity,padding,left,right] lg:duration-200 lg:ease-out motion-reduce:transition-none";
+const RAIL_REVEAL = "lg:max-w-0 lg:overflow-hidden lg:opacity-0 lg:group-hover/rail:max-w-[200px] lg:group-hover/rail:opacity-100 lg:group-focus-within/rail:max-w-[200px] lg:group-focus-within/rail:opacity-100";
 const RAIL = {
   aside: "lg:w-14 lg:hover:w-[248px] lg:focus-within:w-[248px] lg:hover:shadow-float lg:focus-within:shadow-float",
   header: "lg:px-2 lg:group-hover/rail:px-4 lg:group-focus-within/rail:px-4",
   nav: "lg:px-2 lg:group-hover/rail:px-3 lg:group-focus-within/rail:px-3",
-  groupLabel: "lg:sr-only lg:group-hover/rail:not-sr-only lg:group-focus-within/rail:not-sr-only",
-  itemLabel: "lg:sr-only lg:group-hover/rail:not-sr-only lg:group-focus-within/rail:not-sr-only",
-  itemTrailing:
-    "lg:absolute lg:left-[18px] lg:top-0.5 lg:ml-0 lg:group-hover/rail:static lg:group-hover/rail:ml-auto lg:group-focus-within/rail:static lg:group-focus-within/rail:ml-auto",
+  groupLabel: `${RAIL_MOTION} lg:max-h-0 lg:pb-0 lg:overflow-hidden lg:opacity-0 lg:group-hover/rail:max-h-6 lg:group-hover/rail:pb-1.5 lg:group-hover/rail:opacity-100 lg:group-focus-within/rail:max-h-6 lg:group-focus-within/rail:pb-1.5 lg:group-focus-within/rail:opacity-100`,
+  itemLabel: `${RAIL_MOTION} ${RAIL_REVEAL}`,
+  // 件数はレールではアイコンの右上に置き、展開すると項目の右端へ滑らせる
+  itemTrailing: `${RAIL_MOTION} lg:absolute lg:left-[18px] lg:right-auto lg:top-1/2 lg:-translate-y-1/2 lg:group-hover/rail:left-auto lg:group-hover/rail:right-2.5 lg:group-focus-within/rail:left-auto lg:group-focus-within/rail:right-2.5`,
+  // 選択中の縦線：レールでは出さず、展開したときだけフェードで出す
+  activeBar: `${RAIL_MOTION} lg:opacity-0 lg:group-hover/rail:opacity-100 lg:group-focus-within/rail:opacity-100`,
   footer: "lg:p-2 lg:group-hover/rail:p-3 lg:group-focus-within/rail:p-3",
   userRow: "lg:justify-center lg:px-0 lg:group-hover/rail:justify-start lg:group-hover/rail:px-2 lg:group-focus-within/rail:justify-start lg:group-focus-within/rail:px-2",
-  userText: "lg:sr-only lg:group-hover/rail:not-sr-only lg:group-focus-within/rail:not-sr-only",
-  actions: "lg:grid-cols-1 lg:group-hover/rail:grid-cols-2 lg:group-focus-within/rail:grid-cols-2",
-  actionText: "lg:sr-only lg:group-hover/rail:not-sr-only lg:group-focus-within/rail:not-sr-only",
+  userText: `${RAIL_MOTION} ${RAIL_REVEAL}`,
+  actions: `${RAIL_MOTION} lg:grid-cols-1 lg:group-hover/rail:grid-cols-2 lg:group-focus-within/rail:grid-cols-2`,
+  actionText: `${RAIL_MOTION} ${RAIL_REVEAL}`,
 } as const;
 
 export const ConsoleSidebar = React.memo(function ConsoleSidebar({
@@ -257,7 +266,7 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
                       >
                         {item.isActive && (
                           <span
-                            className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full ${accent.bar}`}
+                            className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full ${accent.bar} ${collapsible ? RAIL.activeBar : ""}`}
                             aria-hidden="true"
                           />
                         )}
