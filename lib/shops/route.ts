@@ -9,17 +9,14 @@ export function normalizeShopCodeToId(shopCode: string): number | null {
   return parseShopIdentity(shopCode)?.id ?? null;
 }
 
-/**
- * 店舗ページ（/shops/[code]）が、受け付けた番号を表示・canonical に使う文字列。
- * 旧番号（場所の番号）はそのまま3桁で返す（旧 URL を開いたときの表示を変えないため）。
- * 共有・QR・案内には使わない（そちらは formatShopIdToCode）。
- */
-export function formatShopPageCode(shopId: number): string {
-  return shopId > MAX_SHOP_ID ? String(shopId) : String(shopId).padStart(3, "0");
-}
-
 /** 共有・QR・案内に使う店舗 ID（1000以上の店舗固有番号）だけを文字列にする。旧番号（場所の番号）は作らない。 */
 export function formatShopIdToCode(shopId: number): string | null {
   if (!Number.isSafeInteger(shopId) || shopId <= MAX_SHOP_ID || shopId > MAX_PUBLIC_VENDOR_ID) return null;
   return String(shopId);
+}
+
+/** 店舗ページの URL 解決用。旧番号（001〜999）は3桁ゼロ埋め、店舗 ID はそのまま文字列にする。共有リンクには使わない。 */
+export function formatShopCodeForPage(shopId: number): string | null {
+  if (!Number.isSafeInteger(shopId) || shopId < MIN_SHOP_ID || shopId > MAX_PUBLIC_VENDOR_ID) return null;
+  return shopId <= MAX_SHOP_ID ? String(shopId).padStart(3, "0") : String(shopId);
 }
