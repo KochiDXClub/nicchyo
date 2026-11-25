@@ -14,7 +14,7 @@ import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { getRole } from "@/lib/auth/permissions";
 import { CHOME_ORDER, NEW_VENDOR_ID_PREFIX } from "@/app/(public)/map/types/editableShop";
-import { loadChomeSettings } from "./chomeSettings";
+import { loadChomeSettings, loadMarketAreas } from "./chomeSettings";
 import {
   createMapLayoutSnapshot,
   findRoadIdsWithShops,
@@ -156,7 +156,7 @@ export async function GET() {
     const adminClient = createAdminClient();
     if (!adminClient) return NextResponse.json({ error: "管理者のデータベース接続が設定されていません" }, { status: 503 });
 
-    const [editableShops, landmarks, mapRoute, roads, vendors, categories, mapSettingsLimits, schemaReady, chome, markets] = await Promise.all([
+    const [editableShops, landmarks, mapRoute, roads, vendors, categories, mapSettingsLimits, schemaReady, chome, marketAreas, markets] = await Promise.all([
       loadEditableShops(supabase),
       fetchLandmarksFromDb(supabase),
       fetchMapRouteFromDb(supabase),
@@ -166,6 +166,7 @@ export async function GET() {
       loadMapSettingsLimits(supabase),
       hasRoadPositionSchema(supabase),
       loadChomeSettings(supabase),
+      loadMarketAreas(supabase),
       adminClient.from("markets").select("id, name, slug, marker_color").order("weekday"),
     ]);
     if (markets.error) throw markets.error;
@@ -190,6 +191,8 @@ export async function GET() {
       mapSettingsLimits,
       // 丁目の境目と区間（マイグレーション前は空）。画面が区画の丁目を自動判定するのに使う
       chome,
+      // 市ごとの丁目（マイグレーション前は空）。区画の丁目の選択肢に使う
+      marketAreas,
     });
   } catch {
     return NextResponse.json({ error: "Failed to load map layout" }, { status: 500 });

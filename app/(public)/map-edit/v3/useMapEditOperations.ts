@@ -20,7 +20,7 @@ import {
 import { NEW_VENDOR_ID_PREFIX } from "../../map/types/editableShop";
 import type { MapSettingsLimits } from "./useMapEditData";
 import type { JudgeChome } from "./useChomeJudge";
-import { CHOME_LEGACY_LABELS, legacyChomeLabel, type ChomeId } from "@/lib/map/chomes";
+import { legacyChomeLabel } from "@/lib/map/chomes";
 
 let operationIdCounter = 0;
 
@@ -467,7 +467,8 @@ export function useMapEditOperations(params: Params) {
   }, [shops, commit, setMessage]);
 
   const setSlotChome = useCallback(
-    (locationId: string, value: ChomeId | "auto") => {
+    /** value は市の丁目の名前（market_areas.label）。"auto" は自動判定に戻す */
+    (locationId: string, value: string | "auto") => {
       const shop = shops.find((s) => s.locationId === locationId);
       if (!shop) return;
       if (value === "auto") {
@@ -480,7 +481,7 @@ export function useMapEditOperations(params: Params) {
         );
         return;
       }
-      const chome = CHOME_LEGACY_LABELS[value - 1];
+      const chome = value;
       commit(
         { shops: shops.map((s) => (s.locationId === locationId ? { ...s, chome, chomeLocked: true } : s)) },
         String(shop.position),
