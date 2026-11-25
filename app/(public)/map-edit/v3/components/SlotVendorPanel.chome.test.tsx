@@ -1,6 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ChomeJudgement } from "@/lib/map/chomeBoundaries";
 import SlotVendorPanel from "./SlotVendorPanel";
 import type { EditableShop } from "../types";
 
@@ -10,7 +9,7 @@ const baseShop: EditableShop = { locationId: "loc-1", id: 1, position: 1, name: 
 
 const SUNDAY_AREAS = ["一丁目", "二丁目", "三丁目"];
 
-function renderPanel(shop: EditableShop, autoChome: ChomeJudgement | null, onChomeChange = vi.fn(), chomeLabels: string[] = SUNDAY_AREAS) {
+function renderPanel(shop: EditableShop, onChomeChange = vi.fn(), chomeLabels: string[] = SUNDAY_AREAS) {
   render(
     <SlotVendorPanel
       shop={shop}
@@ -19,7 +18,6 @@ function renderPanel(shop: EditableShop, autoChome: ChomeJudgement | null, onCho
       onChomeChange={onChomeChange}
       chomeLabels={chomeLabels}
       marketName="日曜市"
-      autoChome={autoChome}
       onDelete={vi.fn()}
     />
   );
@@ -27,40 +25,20 @@ function renderPanel(shop: EditableShop, autoChome: ChomeJudgement | null, onCho
 }
 
 describe("SlotVendorPanel の丁目", () => {
-  it("手で設定していない区画で、今の丁目と自動判定が違うときは、ボタンで自動判定の値にできる", () => {
-    const onChomeChange = renderPanel(baseShop, { status: "ok", chomeId: 3 });
-    expect(screen.getByText(/今の丁目と自動判定が違います/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /自動判定の値（3丁目）にする/ }));
-    expect(onChomeChange).toHaveBeenCalledWith("auto");
-  });
-
-  it("丁目が自動判定と同じなら、ボタンは出さない", () => {
-    renderPanel(baseShop, { status: "ok", chomeId: 2 });
-    expect(screen.queryByRole("button", { name: /自動判定の値/ })).toBeNull();
-  });
-
-  it("手で設定した区画や、判定できない区画には、ボタンを出さない", () => {
-    renderPanel({ ...baseShop, chomeLocked: true }, { status: "ok", chomeId: 3 });
-    expect(screen.queryByRole("button", { name: /自動判定の値/ })).toBeNull();
-    cleanup();
-    renderPanel(baseShop, { status: "near_boundary", chomeId: null, candidates: [2, 3] });
-    expect(screen.queryByRole("button", { name: /自動判定の値/ })).toBeNull();
-  });
-
-  it("丁目の選択で丁目を選ぶと、その丁目の名前を知らせる", () => {
-    const onChomeChange = renderPanel(baseShop, null);
+  it("丁目を選ぶと、その丁目の名前で知らせる", () => {
+    const onChomeChange = renderPanel(baseShop);
     fireEvent.change(screen.getByLabelText("日曜市の丁目"), { target: { value: "三丁目" } });
     expect(onChomeChange).toHaveBeenCalledWith("三丁目");
   });
 
-  it("選択肢は、その市の丁目の登録をそのまま並べる（木曜市など別の市の丁目も出る）", () => {
-    renderPanel(baseShop, null, vi.fn(), ["1丁目", "2丁目"]);
+  it("選択肢は未設定と、その市の丁目の登録をそのまま並べる（自動はない）", () => {
+    renderPanel({ ...baseShop, chome: undefined }, vi.fn(), ["1丁目", "2丁目"]);
     const options = (screen.getByLabelText("日曜市の丁目") as HTMLSelectElement).options;
-    expect(Array.from(options).map((o) => o.value)).toEqual(["auto", "1丁目", "2丁目"]);
+    expect(Array.from(options).map((o) => o.value)).toEqual(["", "1丁目", "2丁目"]);
   });
 
-  it("手で設定した丁目が市の登録から外れていても、その値を選択肢に残す", () => {
-    renderPanel({ ...baseShop, chome: "九丁目", chomeLocked: true }, null, vi.fn(), SUNDAY_AREAS);
+  it("今の丁目が市の登録から外れていても、その値を選択肢に残す", () => {
+    renderPanel({ ...baseShop, chome: "九丁目" }, vi.fn(), SUNDAY_AREAS);
     const select = screen.getByLabelText("日曜市の丁目") as HTMLSelectElement;
     expect(select.value).toBe("九丁目");
   });

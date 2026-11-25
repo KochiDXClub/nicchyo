@@ -6,7 +6,7 @@ afterEach(cleanup);
 const shop: EditableShop = { locationId: "loc-1", id: 1, position: 1, name: "朝市の店", lat: 0, lng: 0, vendorId: "v1" };
 const vendor: EditableVendor = { id: "v1", name: "朝市の店", categoryId: null, strength: "", mainProducts: ["野菜"] };
 function panel(place?: Partial<EditableShop>, observed = vendor, apply = vi.fn()) {
-  render(<SlotVendorPanel shop={{ ...shop, ...place }} roadName={null} vendor={observed} onApplyFieldObservation={apply} onChomeChange={vi.fn()} autoChome={null} onDelete={vi.fn()} />);
+  render(<SlotVendorPanel shop={{ ...shop, ...place }} roadName={null} vendor={observed} onApplyFieldObservation={apply} onChomeChange={vi.fn()} onDelete={vi.fn()} />);
   return apply;
 }
 describe("SlotVendorPanel の店舗表示", () => {

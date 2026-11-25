@@ -18,8 +18,8 @@ export type EditableShop = {
   position: number;
   chome?: string;
   /**
-   * 丁目を手で設定した区画（true）。道の位置からの自動判定で上書きしない。
-   * 144番のように、境目の上にあって自動では決まらない区画のため。無ければ自動判定に従う
+   * 丁目を手で設定した区画（DB の chome_locked）。丁目は区画ごとに手で設定するので、画面では見ていない。
+   * 区画分け（丁目の境目による自動判定）は削除済み。
    */
   chomeLocked?: boolean;
   /**

@@ -19,7 +19,6 @@ import { SnapshotHistoryPanel } from "./components/SnapshotHistoryPanel";
 import { RoadDetailPanel, RoadListPanel, LandmarkDetailPanel } from "./components/DetailPanels";
 import SlotVendorPanel from "./components/SlotVendorPanel";
 import { SUNDAY_MARKET_MARKER_COLOR, markerColorForRoad } from "@/lib/market/markerColor";
-import { useChomeJudge } from "./useChomeJudge";
 import PendingChangeLog from "./components/PendingChangeLog";
 import RoadLaneView, { buildLaneRoadGroups, type LaneRoadGroup } from "./components/RoadLaneView";
 import ToolPalette from "./components/ToolPalette";
@@ -70,8 +69,6 @@ export default function MapEditClientV3() {
   });
   const { shops, roads, landmarks, projection, setMessage, hasUnsavedChanges, setIsHistoryOpen } = data;
 
-  const { judge } = useChomeJudge(roads, data.chomeBoundaries, data.chomeSections);
-
   const ops = useMapEditOperations({
     history,
     setHistory,
@@ -85,7 +82,6 @@ export default function MapEditClientV3() {
     setVendors: data.setVendors,
     routeConfig: data.routeConfig,
     mapSettingsLimits: data.mapSettingsLimits,
-    judgeChome: judge,
     setMessage,
   });
 
@@ -606,11 +602,6 @@ export default function MapEditClientV3() {
                   onChomeChange={(value) => ops.setSlotChome(selectedShop.locationId, value)}
                   chomeLabels={data.marketAreas.filter((area) => area.marketId === selectedShopMarket?.id).map((area) => area.label)}
                   marketName={selectedShopMarket?.name}
-                  autoChome={
-                    selectedShop.roadId && selectedShop.roadDistanceM != null
-                      ? judge(selectedShop.roadId, selectedShop.roadDistanceM)
-                      : null
-                  }
                   onDelete={() => {
                     if (ops.deleteSlot(selectedShop.locationId)) setSelection(null);
                   }}

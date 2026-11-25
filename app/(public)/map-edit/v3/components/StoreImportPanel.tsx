@@ -12,7 +12,6 @@ import {
   type StoreCsvRow,
   type StoreImportPlan,
 } from "../storeCsvImport";
-import type { ChomeRange } from "@/lib/map/chomeBoundaries";
 import type { EditableRoad, EditableShop, EditableVendor, VendorCategory } from "../types";
 import {
   buttonStyle,
@@ -49,7 +48,6 @@ function IssueList({ issues, tone }: { issues: ImportIssue[]; tone: "error" | "w
  */
 export default function StoreImportPanel({
   roads,
-  chomeRanges,
   shops,
   vendors,
   categories,
@@ -57,8 +55,6 @@ export default function StoreImportPanel({
   onClose,
 }: {
   roads: EditableRoad[];
-  /** 丁目の区間。あれば、北・南の区画を丁目の区間の中に置く */
-  chomeRanges?: ChomeRange[];
   shops: EditableShop[];
   vendors: EditableVendor[];
   categories: VendorCategory[];
@@ -84,12 +80,11 @@ export default function StoreImportPanel({
             vendors,
             categories,
             roads: defaults,
-            chomeRanges,
             replace,
             deleteVendors,
           })
         : null,
-    [parsed, shops, vendors, categories, defaults, chomeRanges, replace, deleteVendors]
+    [parsed, shops, vendors, categories, defaults, replace, deleteVendors]
   );
 
   const readFile = async (file: File) => {
