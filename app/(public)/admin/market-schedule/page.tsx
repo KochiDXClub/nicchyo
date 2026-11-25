@@ -22,7 +22,8 @@ function placeLabel(place: ScheduleAdminData["places"][number]) {
 export default function MarketSchedulePage() {
   const { permissions, isLoading } = useAuth();
   const [data, setData] = useState<ScheduleAdminData | null>(null);
-  const [publicEnabled, setPublicEnabled] = useState<boolean | null>(null);
+  const [rollout, setRollout] = useState<{ enabled: boolean; revision: number; conflicts: number } | null>(null);
+  const publicEnabled = rollout?.enabled ?? null;
   const [location, setLocation] = useState("");
   const [vendor, setVendor] = useState("");
   const [membership, setMembership] = useState("");
@@ -54,9 +55,11 @@ export default function MarketSchedulePage() {
     void load().catch((e) => setError(e instanceof Error ? e.message : "読み込めませんでした"));
     void fetch("/api/admin/public-schedule", { cache: "no-store" }).then(async (response) => {
       if (!response.ok) throw new Error("公開設定を取得できませんでした");
-      const value = await response.json() as { enabled?: unknown };
-      setPublicEnabled(typeof value.enabled === "boolean" ? value.enabled : null);
-    }).catch(() => setPublicEnabled(null));
+      const value = await response.json() as { enabled?: unknown; revision?: unknown; summary?: { conflicts?: unknown } };
+      setRollout(typeof value.enabled === "boolean" && typeof value.revision === "number"
+        ? { enabled: value.enabled, revision: value.revision, conflicts: typeof value.summary?.conflicts === "number" ? value.summary.conflicts : 0 }
+        : null);
+    }).catch(() => setRollout(null));
     setMemberStart(todayJstString());
     setViewStart(nextSundayJstString());
     setRuleStart(nextSundayJstString());
@@ -107,10 +110,31 @@ export default function MarketSchedulePage() {
     finally { setBusy(false); }
   }
 
+  async function publishRollout() {
+    if (!rollout || rollout.enabled) return;
+    const message = "出店予定と店舗固有 ID を公開します。公開後は公開前の表示に戻せません。未確認の旧番号は自動で結び付きません。予定の競合は確認しましたか？";
+    if (!window.confirm(message)) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/admin/public-schedule", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: true, revision: rollout.revision, confirmed: true }) });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "公開設定を保存できませんでした");
+      setRollout(null);
+      void fetch("/api/admin/public-schedule", { cache: "no-store" }).then(async (next) => {
+        const value = await next.json() as { enabled?: unknown; revision?: unknown; summary?: { conflicts?: unknown } };
+        if (typeof value.enabled === "boolean" && typeof value.revision === "number") setRollout({ enabled: value.enabled, revision: value.revision, conflicts: typeof value.summary?.conflicts === "number" ? value.summary.conflicts : 0 });
+      });
+      setNotice("出店予定の公開を開始しました。");
+    } catch (e) { setError(e instanceof Error ? e.message : "公開設定を保存できませんでした"); }
+    finally { setBusy(false); }
+  }
+
   if (isLoading || !permissions.isAdmin) return null;
   return <AdminLayout><AdminPageHeader eyebrow="Schedule" title="出店予定管理" description="場所ごと・店舗ごとに出店予定を確認します" />
     <main className="mx-auto max-w-5xl space-y-5 px-4 py-5">
-      <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{publicEnabled === null ? "公開設定を確認できません。変更前に設定画面で確認してください。" : publicEnabled ? "出店予定は公開マップに反映されます。変更前に競合と公開日を確認してください。" : "この画面の予定はまだ公開マップには反映されません。運用開始前の確認用です。"}</p>
+      <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{publicEnabled === null ? "公開設定を確認できません。変更前に設定画面で確認してください。" : publicEnabled ? "出店予定は公開マップに反映されます。変更前に競合と公開日を確認してください。" : "この画面の予定はまだ公開マップには反映されません。運用開始前の確認用です。"}
+        {rollout && !rollout.enabled && <button type="button" className={`ml-3 ${button}`} disabled={busy || rollout.conflicts > 0} onClick={() => void publishRollout()}>出店予定を公開</button>}
+        {rollout && !rollout.enabled && rollout.conflicts > 0 && <span className="ml-3">予定に競合があるため、先に解消してください。</span>}</p>
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm">{notice}</p>}
       {!data ? <p>読み込み中…</p> : <>
