@@ -80,7 +80,7 @@ app/
 │   ├── map/           # メイン地図ページ（主機能）
 │   ├── search/        # 店舗検索
 │   ├── consult/       # AI「にちよさん」チャット
-│   ├── shops/[code]/  # 店舗詳細（コードは3桁ゼロ埋め: 001〜999）
+│   ├── shops/[code]/  # 店舗詳細（店舗ID 1000以上。旧番号 001〜999 は固定URLへ転送）
 │   ├── my-shop/       # 出店者向けページ
 │   └── ...
 ├── private/           # 要認証ページ
@@ -119,7 +119,7 @@ Layer 0: MapLibreベースマップ
 
 ### 店舗コード体系
 
-店舗IDは1〜999の整数（`MAX_SHOP_ID`）。URLパラメータ・QRコードでは3桁ゼロ埋め文字列（`001`〜`999`）。変換は `lib/shops/route.ts` の `normalizeShopCodeToId` / `formatShopIdToCode` を使う。
+場所の番号は1〜999（`MAX_SHOP_ID`）で、旧番号として扱う。共有リンク・QR・案内には店舗ID（1000以上の整数）だけを使い、`lib/shops/route.ts` の `formatShopIdToCode` で文字列にする（旧番号は `null`）。旧 URL（`/shops/001`）の受け付けは `normalizeShopCodeToId` と、店舗ページでの固定URLへの転送で行う。
 
 `next.config.js` に `/shops001` → `/shops/001` のリライトルールあり。
 
