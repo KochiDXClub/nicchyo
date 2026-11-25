@@ -75,6 +75,15 @@ describe("fetchPublicShops", () => {
     await fetchPublicShops();
     expect(mocks.buildVendorShops).toHaveBeenCalledWith(expect.objectContaining({ vendors: [{ id: "v1", shop_name: "公開", public_shop_id: 1001 }], assignments: [expect.objectContaining({ vendor_id: "v1", location_id: "place" })] }), [], { stableIds: true });
   });
+  it("公開切替の前も、店舗IDを付けた出店者だけを stableIds で組み立てる（全店が消えない）", async () => {
+    const rows = { ...baseRows, vendors: [{ id: "v1", shop_name: "店" }, { id: "noid", shop_name: "IDなし" }], locations: [], assignments: [] };
+    mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows, failedTables: [] });
+    mocks.fetchShopDelta.mockResolvedValue({ vendors: [], products: [], deletedProductIds: [], visibleVendorCount: 2 });
+    mocks.readPublicScheduleRollout.mockResolvedValue(false);
+    mocks.fetchAllRows.mockResolvedValue({ data: [{ id: "v1", public_shop_id: 1001 }], error: null });
+    await fetchPublicShops();
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(expect.objectContaining({ vendors: [{ id: "v1", shop_name: "店", public_shop_id: 1001 }] }), [], { stableIds: true });
+  });
   it("非出店・休市でも公開店舗プロフィールを残し、非公開店舗や地図座標を返さない", async () => {
     const rows = { ...baseRows, vendors: [{ id: "v1", shop_name: "公開" }, { id: "hidden", shop_name: "非公開" }], assignments: [] };
     mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows, failedTables: [] });
@@ -144,7 +153,7 @@ describe("fetchPublicShops", () => {
     mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows: baseRows, failedTables: [] });
 
     await expect(fetchPublicShops()).resolves.toEqual([{ id: 1 }]);
-    expect(mocks.buildVendorShops).toHaveBeenCalledWith(baseRows, []);
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(baseRows, [], { stableIds: true });
   });
 
   it("基本データを取った時刻の少し前から変わった行を取り、基本データに重ねて組み立てる", async () => {
@@ -162,7 +171,7 @@ describe("fetchPublicShops", () => {
     // 余裕は1分
     expect(mocks.fetchShopDelta).toHaveBeenCalledWith(expect.anything(), "2026-10-29T04:59:00.000Z");
     expect(mocks.applyShopDelta).toHaveBeenCalledWith(baseRows, delta);
-    expect(mocks.buildVendorShops).toHaveBeenCalledWith(merged, []);
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(merged, [], { stableIds: true });
   });
 
   it("見える店舗の数が合わなければ、店舗の id 一覧と突き合わせて、見えなくなった店舗を外す", async () => {
@@ -176,7 +185,7 @@ describe("fetchPublicShops", () => {
     await fetchPublicShops();
 
     expect(mocks.pruneInvisibleVendors).toHaveBeenCalledWith(baseRows, new Set(["v1"]));
-    expect(mocks.buildVendorShops).toHaveBeenCalledWith(pruned, []);
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(pruned, [], { stableIds: true });
   });
 
   it("店舗の数が合っていれば、店舗の id 一覧は取らない", async () => {
@@ -193,7 +202,7 @@ describe("fetchPublicShops", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await expect(fetchPublicShops()).resolves.toEqual([{ id: 1 }]);
-    expect(mocks.buildVendorShops).toHaveBeenCalledWith(baseRows, []);
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(baseRows, [], { stableIds: true });
     warn.mockRestore();
   });
 
@@ -206,7 +215,7 @@ describe("fetchPublicShops", () => {
 
     await expect(fetchPublicShops()).resolves.toEqual([{ id: 1 }]);
     expect(mocks.fetchVendorShopBaseRows).toHaveBeenCalledTimes(2);
-    expect(mocks.buildVendorShops).toHaveBeenCalledWith(partialRows, []);
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(partialRows, [], { stableIds: true });
     // キャッシュ外で取り立てたデータには、差分を重ねない
     expect(mocks.fetchShopDelta).not.toHaveBeenCalled();
     warn.mockRestore();
