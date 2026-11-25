@@ -318,21 +318,11 @@ export function useMapEditOperations(params: Params) {
   );
 
   /**
-   * 道の上に、名前付きの出店場所（空きの区画）を1つ追加する。道の真ん中・左側に置き、
-   * 店番は空いている番号を使う。名前は市の中で重複させない（DB の一意インデックスとも揃える）。
+   * 道の上に、空きの出店場所（丸いマーカー）を1つ追加する。道の真ん中・左側に置き、店番は空いている番号を使う。
+   * 出店者は後から、この丸に結び付ける（moveVendor など）。
    */
-  const addPlaceSlot = useCallback(
-    (road: EditableRoad, rawName: string): boolean => {
-      const placeName = rawName.trim();
-      if (!placeName || placeName.length > 100) {
-        setMessage("出店場所の名前は1〜100文字で入力してください。");
-        return false;
-      }
-      const key = (value: string) => value.normalize("NFKC").replace(/[\s\u3000]+/g, "").toLowerCase();
-      if (shops.some((s) => s.placeName && key(s.placeName) === key(placeName))) {
-        setMessage("同じ名前の出店場所がすでにあります。");
-        return false;
-      }
+  const addSlot = useCallback(
+    (road: EditableRoad): boolean => {
       if (road.points.length < 2) {
         setMessage("道の点が足りないため、出店場所を置けません。");
         return false;
@@ -353,27 +343,22 @@ export function useMapEditOperations(params: Params) {
       const distanceM = roadLengthMeters(road.points) / 2;
       const latLng = roadSlotLatLng(road.points, { distanceM, side, offsetM: 0 });
       const created: EditableShop = {
-        locationId: `new-${Date.now()}-place`,
+        locationId: `new-${Date.now()}-${position}`,
         id: position,
         position,
         name: vacantShopName(position),
-        placeName,
         roadId: road.id,
         roadDistanceM: distanceM,
         roadSide: side,
         roadOffsetM: 0,
         ...latLng,
       };
-      commit({ shops: [...shops, created] }, "道", `${road.name} に出店場所「${placeName}」を追加`);
+      commit({ shops: [...shops, created] }, "道", `${road.name} に出店場所（${position}番）を追加`);
       return true;
     },
     [shops, commit, setMessage]
   );
 
-  /**
-   * 区画の丁目を直す。丁目を選ぶと「手で設定」になり、自動判定で上書きしない。
-   * "auto" を選ぶと手動設定を外し、道の位置から決め直す（決まらなければ今の丁目のまま）。
-   */
   const setSlotAddress = useCallback((locationId: string, address: { main: number; branch: number | null } | null) => {
     const shop = shops.find((item) => item.locationId === locationId);
     if (!shop) return false;
@@ -621,7 +606,7 @@ export function useMapEditOperations(params: Params) {
     clearVendor,
     setSlotChome,
     setSlotAddress,
-    addPlaceSlot,
+    addSlot,
     deleteSlot,
     applyStoreImport,
     patchRoad,

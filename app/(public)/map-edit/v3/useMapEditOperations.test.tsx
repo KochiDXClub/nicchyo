@@ -250,30 +250,27 @@ describe("useMapEditOperations.setSlotChome", () => {
   });
 });
 
-describe("useMapEditOperations.addPlaceSlot", () => {
-  it("道の上に、空いている店番で名前付きの出店場所を1つ追加し、取り消せる", () => {
+describe("useMapEditOperations.addSlot", () => {
+  it("道の上に、空いている店番で空きの出店場所を1つ追加し、取り消せる", () => {
     const { hook } = setup([slot(1, 5, { chome: "一丁目" })]);
     act(() => {
-      expect(hook.result.current.ops.addPlaceSlot(road, "  広場前  ")).toBe(true);
+      expect(hook.result.current.ops.addSlot(road)).toBe(true);
     });
-    const added = hook.result.current.shops.find((s) => s.placeName === "広場前");
-    expect(added).toMatchObject({ roadId: road.id, roadSide: "left", position: 2, placeName: "広場前" });
+    const added = hook.result.current.shops.find((s) => s.locationId.startsWith("new-"));
+    expect(added).toMatchObject({ roadId: road.id, roadSide: "left", position: 2 });
+    expect(added?.vendorId).toBeUndefined();
     act(() => hook.result.current.ops.undo());
-    expect(hook.result.current.shops.some((s) => s.placeName)).toBe(false);
+    expect(hook.result.current.shops).toHaveLength(1);
   });
 
-  it("全角・空白の違いでも同じ名前は重ねて作らない", () => {
-    const { hook, setMessage } = setup([slot(1, 5, { placeName: "広場前" })]);
-    act(() => {
-      expect(hook.result.current.ops.addPlaceSlot(road, "広 場 前")).toBe(false);
-    });
-    expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("同じ名前"));
-  });
-
-  it("空の名前では作らない", () => {
+  it("追加した空きの出店場所は、削除できる", () => {
     const { hook } = setup([]);
     act(() => {
-      expect(hook.result.current.ops.addPlaceSlot(road, "   ")).toBe(false);
+      hook.result.current.ops.addSlot(road);
+    });
+    const added = hook.result.current.shops[0];
+    act(() => {
+      expect(hook.result.current.ops.deleteSlot(added.locationId)).toBe(true);
     });
     expect(hook.result.current.shops).toHaveLength(0);
   });

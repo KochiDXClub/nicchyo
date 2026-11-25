@@ -102,10 +102,6 @@ function validateShopFields(shops: EditableShop[]) {
     if (shop.chome !== undefined && shop.chome !== null && !CHOME_VALUES.has(shop.chome)) {
       return `店番 ${shop.position} の丁目が正しくありません`;
     }
-    if (shop.placeName !== undefined && shop.placeName !== null) {
-      const name = typeof shop.placeName === "string" ? shop.placeName.trim() : "";
-      if (!name || name.length > 100) return `店番 ${shop.position} の出店場所の名前が正しくありません（1〜100文字）`;
-    }
     if (shop.chomeLocked !== undefined && shop.chomeLocked !== null && typeof shop.chomeLocked !== "boolean") {
       return `店番 ${shop.position} の丁目の手動設定が正しくありません`;
     }
@@ -539,8 +535,6 @@ export async function PUT(request: NextRequest) {
         chome: shop.chome ?? null,
         // 送られてきたときだけ DB を上書きする（無ければ今の値を残す）。画面は手動設定を外すとき false を送る
         chomeLocked: shop.chomeLocked ?? null,
-        // 出店場所の名前（新しく付けるときだけ DB に入る。既にある名前は変えない）
-        placeName: shop.placeName?.trim() || null,
         vendorId: shop.vendorId?.trim() || null,
         roadId: shop.roadId ?? null,
         roadDistanceM: shop.roadDistanceM ?? null,

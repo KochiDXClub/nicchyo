@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import type { EditableLandmark, EditableRoad, RoadKind } from "../types";
 import { ROAD_KIND_LABELS } from "../types";
 import { buttonStyle, dangerButtonStyle, inputStyle, label, panelWrap } from "./panelStyles";
@@ -46,27 +45,12 @@ export function RoadListPanel({
   );
 }
 
-/** 道の上に名前付きの出店場所を1つ追加する入力欄（保存は地図の保存でまとめて行う） */
-function PlaceAddForm({ onAddPlace }: { onAddPlace: (name: string) => boolean }) {
-  const [name, setName] = useState("");
+/** 道の上に空きの出店場所（丸いマーカー）を1つ追加する。出店者は後から丸に結び付ける */
+function PlaceAddButton({ onAddPlace }: { onAddPlace: () => boolean }) {
   return (
     <div style={{ marginTop: 12 }}>
-      <span style={label}>出店場所を追加</span>
-      <input
-        aria-label="出店場所の名前"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="例：広場の出店場所"
-        style={inputStyle}
-      />
-      <button
-        type="button"
-        style={{ ...buttonStyle, marginTop: 6 }}
-        disabled={!name.trim()}
-        onClick={() => {
-          if (onAddPlace(name)) setName("");
-        }}
-      >
+      <span style={label}>出店場所（丸いマーカー）</span>
+      <button type="button" style={buttonStyle} onClick={() => onAddPlace()}>
         この道に出店場所を追加
       </button>
     </div>
@@ -94,8 +78,8 @@ export function RoadDetailPanel({
   onNarrowerClick: () => void;
   onDelete: () => void;
   shopCountOnRoad: (roadId: string) => number;
-  /** 名前付きの出店場所を、この道に1つ追加する（道を選んでいるときだけ出す） */
-  onAddPlace?: (name: string) => boolean;
+  /** 空きの出店場所を、この道に1つ追加する */
+  onAddPlace?: () => boolean;
 }) {
   return (
     <div style={panelWrap}>
@@ -117,7 +101,7 @@ export function RoadDetailPanel({
         ))}
       </select>
 
-      {onAddPlace && <PlaceAddForm onAddPlace={onAddPlace} />}
+      {onAddPlace && <PlaceAddButton onAddPlace={onAddPlace} />}
 
       {markets.length > 1 && (
         <label style={label}>
