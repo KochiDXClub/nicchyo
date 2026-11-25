@@ -24,6 +24,9 @@ export const CONSOLE_SIDEBAR_OFFSET_CLASS = "lg:pl-[248px]";
 /** アイコンだけのレール（collapsible）のときの余白。レールの幅（w-14）と揃える。展開時は本文の上に重ねる */
 export const CONSOLE_SIDEBAR_RAIL_OFFSET_CLASS = "lg:pl-14";
 
+/** アイコン列とサブ一覧（幅 w-56）のぶん、本文を右へ寄せる余白 */
+export const CONSOLE_SIDEBAR_RAIL_WITH_PANEL_OFFSET_CLASS = "lg:pl-[280px]";
+
 /** 呼び出し側の色。サイドバーは面で色を塗らないので、線と文字だけの控えめな指定にする */
 export type ConsoleSidebarAccent = {
   /** 選択中の項目の左に出す縦線 */
@@ -42,6 +45,17 @@ export type ConsoleSidebarItem = {
   description?: string;
   isActive: boolean;
   /** 右端に添えるもの（新着の件数など） */
+  trailing?: ReactNode;
+};
+
+/** PC の左端のアイコン列に出すメイン。アイコンだけを出し、カーソルを重ねた時だけ名前が広がる */
+export type ConsoleSidebarRailItem = {
+  id: string;
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  isActive: boolean;
+  /** 右上に添えるもの（配下の未対応の件数など） */
   trailing?: ReactNode;
 };
 
@@ -111,6 +125,8 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
   menuLabel,
   showMobileToggle = true,
   collapsible = false,
+  rail,
+  subPanel,
   homeHref,
   homeLabel,
   subtitle,
@@ -132,6 +148,13 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
    * 本文の余白は CONSOLE_SIDEBAR_RAIL_OFFSET_CLASS にそろえる。出店者・市の画面は従来どおり（false）
    */
   collapsible?: boolean;
+  /**
+   * PC の左端のアイコン列（メイン）。指定すると PC はこの列だけを出し、groups はモバイルの開閉メニューに回す。
+   * collapsible と一緒に使う
+   */
+  rail?: ConsoleSidebarRailItem[];
+  /** PC で、選んだメインのサブ一覧を常に出す（アイコン列の右隣）。サブが無いメインは null */
+  subPanel?: { label: string; items: ConsoleSidebarItem[] } | null;
   /** ロゴから戻る、この画面のホーム */
   homeHref: string;
   homeLabel: string;
@@ -159,6 +182,49 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
     const overflow = active.getBoundingClientRect().bottom - nav.getBoundingClientRect().bottom;
     if (overflow > 0) nav.scrollTop += overflow;
   }, [menuLabel]);
+
+  /** 一覧の1行。plain のときは PC の折りたたみ用の装飾を付けない（サブ一覧は常に文字を出す） */
+  const renderNavItem = (item: ConsoleSidebarItem, plain: boolean) => {
+    const Icon = item.icon;
+    const folded = collapsible && !plain && !rail;
+    return (
+      <li key={item.href}>
+        <Link
+          href={item.href}
+          onClick={onClose}
+          title={item.description}
+          aria-current={item.isActive ? "page" : undefined}
+          className={`group relative flex h-9 items-center gap-2.5 rounded-lg ${
+            collapsible && !plain ? "px-2" : "px-2.5"
+          } text-[13px] font-medium transition-colors ${
+            item.isActive
+              ? "bg-nicchyo-ink/5 text-nicchyo-ink"
+              : "text-nicchyo-ink/70 hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink"
+          }`}
+        >
+          {item.isActive && (
+            <span
+              className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full ${accent.bar} ${
+                folded ? RAIL.activeBar : ""
+              }`}
+              aria-hidden="true"
+            />
+          )}
+          <Icon
+            className={`h-[16px] w-[16px] shrink-0 transition-colors ${
+              item.isActive ? accent.icon : "text-nicchyo-ink/40 group-hover:text-nicchyo-ink/55"
+            }`}
+            aria-hidden="true"
+          />
+          <span className={`min-w-0 flex-1 truncate ${folded ? RAIL.itemLabel : ""}`}>{item.label}</span>
+          {item.trailing != null && (
+            // レールでは未対応の件数をアイコンの右上に小さく出す（展開したら項目の右端へ戻す）
+            <span className={`ml-auto ${folded ? RAIL.itemTrailing : ""}`}>{item.trailing}</span>
+          )}
+        </Link>
+      </li>
+    );
+  };
 
   return (
     <>
@@ -236,58 +302,59 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
           ref={navRef}
           aria-label={menuLabel}
           onScroll={(e) => navScrollTopByMenu.set(menuLabel, e.currentTarget.scrollTop)}
-          className={`flex-1 space-y-5 overflow-y-auto px-3 py-4 ${collapsible ? RAIL.nav : ""}`}>
-          {groups.map((group) => (
-            <div key={group.id}>
-              <p
-                className={`px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-nicchyo-ink/55 ${
-                  collapsible ? RAIL.groupLabel : ""
-                }`}
-              >
-                {group.label}
-              </p>
-              <ul className="space-y-0.5">
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        onClick={onClose}
-                        title={item.description}
-                        aria-current={item.isActive ? "page" : undefined}
-                        className={`group relative flex h-9 items-center gap-2.5 rounded-lg ${
-                          collapsible ? "px-2" : "px-2.5"
-                        } text-[13px] font-medium transition-colors ${
-                          item.isActive
-                            ? "bg-nicchyo-ink/5 text-nicchyo-ink"
-                            : "text-nicchyo-ink/70 hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink"
-                        }`}
-                      >
-                        {item.isActive && (
-                          <span
-                            className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full ${accent.bar} ${collapsible ? RAIL.activeBar : ""}`}
-                            aria-hidden="true"
-                          />
-                        )}
-                        <Icon
-                          className={`h-[16px] w-[16px] shrink-0 transition-colors ${
-                            item.isActive ? accent.icon : "text-nicchyo-ink/40 group-hover:text-nicchyo-ink/55"
-                          }`}
+          className={`flex-1 overflow-y-auto px-3 py-4 ${collapsible ? RAIL.nav : ""}`}>
+          {rail && (
+            // PC：左のアイコン列（メイン）。モバイルでは出さず、下の一覧を使う
+            <ul className="hidden space-y-1 lg:block">
+              {rail.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <li key={item.id}>
+                    <Link
+                      href={item.href}
+                      onClick={onClose}
+                      title={item.label}
+                      aria-current={item.isActive ? "page" : undefined}
+                      className={`group relative flex h-10 items-center gap-2.5 rounded-lg px-2 text-[13px] font-medium transition-colors ${
+                        item.isActive
+                          ? "bg-nicchyo-ink/5 text-nicchyo-ink"
+                          : "text-nicchyo-ink/70 hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink"
+                      }`}
+                    >
+                      {item.isActive && (
+                        <span
+                          className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full ${accent.bar} ${RAIL.activeBar}`}
                           aria-hidden="true"
                         />
-                        <span className={`min-w-0 flex-1 truncate ${collapsible ? RAIL.itemLabel : ""}`}>{item.label}</span>
-                        {item.trailing != null && (
-                          // レールでは未対応の件数をアイコンの右上に小さく出す（展開したら項目の右端へ戻す）
-                          <span className={`ml-auto ${collapsible ? RAIL.itemTrailing : ""}`}>{item.trailing}</span>
-                        )}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+                      )}
+                      <Icon
+                        className={`h-[16px] w-[16px] shrink-0 transition-colors ${
+                          item.isActive ? accent.icon : "text-nicchyo-ink/40 group-hover:text-nicchyo-ink/55"
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <span className={`min-w-0 flex-1 truncate ${RAIL.itemLabel}`}>{item.label}</span>
+                      {item.trailing != null && <span className={RAIL.itemTrailing}>{item.trailing}</span>}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div className={`space-y-5 ${rail ? "lg:hidden" : ""}`}>
+            {groups.map((group) => (
+              <div key={group.id}>
+                <p
+                  className={`px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-nicchyo-ink/55 ${
+                    collapsible && !rail ? RAIL.groupLabel : ""
+                  }`}
+                >
+                  {group.label}
+                </p>
+                <ul className="space-y-0.5">{group.items.map((item) => renderNavItem(item, false))}</ul>
+              </div>
+            ))}
+          </div>
         </nav>
 
         {/* フッター：ユーザー情報と操作 */}
@@ -325,6 +392,21 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
           </div>
         </div>
       </aside>
+
+      {/* PC：選んだメインのサブ一覧（アイコン列の右隣に常に出す）。モバイルでは出さない */}
+      {subPanel && (
+        <aside
+          aria-label={`${subPanel.label}のサブメニュー`}
+          className="fixed inset-y-0 z-[9998] hidden w-56 flex-col border-r border-line bg-white lg:left-14 lg:flex"
+        >
+          <div className="flex h-14 shrink-0 items-center border-b border-line px-4">
+            <span className="truncate text-[13px] font-semibold text-nicchyo-ink">{subPanel.label}</span>
+          </div>
+          <nav aria-label={`${subPanel.label}のメニュー`} className="flex-1 overflow-y-auto px-3 py-4">
+            <ul className="space-y-0.5">{subPanel.items.map((item) => renderNavItem(item, true))}</ul>
+          </nav>
+        </aside>
+      )}
     </>
   );
 });

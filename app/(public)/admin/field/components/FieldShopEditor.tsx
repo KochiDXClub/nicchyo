@@ -563,7 +563,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         </>}
       </Card>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 p-3 backdrop-blur lg:left-14">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 p-3 backdrop-blur lg:left-[280px]">
         <div className="mx-auto flex max-w-2xl gap-2">
           <Link href="/admin/field" className={`${buttonClass} border border-line bg-white text-nicchyo-ink/70`}>
             一覧へ

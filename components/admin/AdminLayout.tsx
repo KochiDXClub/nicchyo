@@ -8,7 +8,12 @@
 import React, { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AdminSidebar } from "./AdminSidebar";
-import { CONSOLE_SIDEBAR_RAIL_OFFSET_CLASS } from "@/components/navigation/ConsoleSidebar";
+import {
+  CONSOLE_SIDEBAR_RAIL_OFFSET_CLASS,
+  CONSOLE_SIDEBAR_RAIL_WITH_PANEL_OFFSET_CLASS,
+} from "@/components/navigation/ConsoleSidebar";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { getAdminSubPanelGroup } from "@/lib/admin/adminNav";
 import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 
 interface AdminLayoutProps {
@@ -21,6 +26,9 @@ export const AdminLayout = React.memo(function AdminLayout({
   withBottomPadding = true,
 }: AdminLayoutProps) {
   const pathname = usePathname();
+  const { permissions } = useAuth();
+  // サブ一覧を出すページは、本文もその分だけ右へ寄せる（ページの移動で本文が跳ねないよう、出すかどうかで決める）
+  const hasSubPanel = getAdminSubPanelGroup(pathname, permissions) !== null;
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -31,7 +39,11 @@ export const AdminLayout = React.memo(function AdminLayout({
   useBodyScrollLock(isSidebarOpen);
 
   return (
-    <div className={`min-h-screen bg-nicchyo-base ${CONSOLE_SIDEBAR_RAIL_OFFSET_CLASS}`}>
+    <div
+      className={`min-h-screen bg-nicchyo-base ${
+        hasSubPanel ? CONSOLE_SIDEBAR_RAIL_WITH_PANEL_OFFSET_CLASS : CONSOLE_SIDEBAR_RAIL_OFFSET_CLASS
+      }`}
+    >
       <AdminSidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen((v) => !v)}
