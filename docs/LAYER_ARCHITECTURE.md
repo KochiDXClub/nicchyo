@@ -2,35 +2,41 @@
 
 マップの重なり順と、座標の基準をまとめる。マーカーの中身は [ARCHITECTURE_SHOP_MARKERS.md](./ARCHITECTURE_SHOP_MARKERS.md)、見せ方の方針は [MAP_MARKER_DESIGN.md](./MAP_MARKER_DESIGN.md)。
 
-## 描画ライブラリは2系統
+## 描画ライブラリは MapLibre 版のみ
 
-`lib/mapFeatureFlags.ts` の `renderer`（既定 `maplibre`。管理画面の設定、または URL の `?mapFlags=renderer:maplibre`）で切り替わる。`MapPageClient.tsx` がどちらの `MapView` を使うか決める。
+マップ本体は `components/maplibre/MapViewMapLibre.tsx`（`maplibre-gl`）だけ。`MapPageClient.tsx` が SSR 無効の `dynamic import` で読み込む。
 
-| | Leaflet 版（既定） | MapLibre 版（移行中の並走検証用） |
-|---|---|---|
-| 本体 | `components/MapView.tsx`（`react-leaflet`） | `components/maplibre/MapViewMapLibre.tsx`（`maplibre-gl`） |
-| 店舗 | DOM マーカー（`OptimizedShopLayerWithClustering`） | GeoJSON シンボルレイヤー（`maplibre/shopFeatures.ts`、スプライトは `stallSprites.ts`） |
-| 背景地図 | CARTO ラスタータイル | `basemap` フラグで CARTO ラスター / OpenFreeMap ベクター（`config/basemap.ts`） |
-| 道 | `RoadOverlay.tsx` | GeoJSON の `nicchyo-road-*` レイヤー |
-| 現在地 | `UserLocationMarker.tsx` | `maplibre/useMapLibreUserLocation.ts` |
-| 人影（`crowd`） | なし | `maplibre/crowdSprites.ts`（既定オフ） |
+以前は Leaflet 版（`react-leaflet`）と並走していたが、MapLibre 版に一本化して Leaflet 版のコンポーネントは削除した。`lib/mapFeatureFlags.ts` に `renderer` フラグは無い。
 
-運営の配置編集画面（`app/(public)/map-edit/v3/`）は MapLibre 版のキャンバス（`MapEditCanvasMapLibre.tsx`）を使う。
+| 要素 | 実装（MapLibre 版） |
+|---|---|
+| 本体 | `components/maplibre/MapViewMapLibre.tsx` |
+| 店舗 | GeoJSON シンボルレイヤー（`maplibre/shopFeatures.ts`、スプライトは `stallSprites.ts`） |
+| 背景地図 | `basemap` フラグで CARTO ラスター / OpenFreeMap ベクター（`config/basemap.ts`） |
+| 背景の色かぶせ | `nicchyo-tint`（ラスター画像ソース） |
+| 道 | GeoJSON の `nicchyo-road-*` レイヤー（色・線幅は `config/roadStyle.ts`） |
+| ランドマーク | `nicchyo-landmarks*` レイヤー |
+| 現在地 | `maplibre/useMapLibreUserLocation.ts` |
+| 人影（`crowd`） | `maplibre/crowdSprites.ts`（既定オフ） |
+| おでかけサポート | `GuideLayer.tsx`（maplibregl.Marker と GeoJSON の線） |
 
-## Leaflet 版の重なり順（下から）
+運営の配置編集画面（`app/(public)/map-edit/v3/`）も MapLibre 版のキャンバス（`MapEditCanvasMapLibre.tsx`）を使う。
+
+## 重なり順
+
+`MapViewMapLibre.tsx` の `addLayer` は呼ばれた順に積まれる（後に追加したものが上）。下から大づかみに次のとおり。
 
 ```
-Layer 0: 背景地図              TileLayer（zIndex 1、ズームで不透明度を変える）
-Layer 1: 背景オーバーレイ      BackgroundOverlay（market-tint.webp の ImageOverlay。backgroundOverlay フラグ）
-Layer 2: 道                    RoadOverlay（config.zIndex = 50）
-         ランドマーク          ペイン "landmarks"（70）
-Layer 3: 店舗                  ペイン "shop"（610）… OptimizedShopLayerWithClustering
-                               ChomeAreaMarkers（丁目バッジ）、GuideLayer（おでかけサポート）、UserLocationMarker
-         演出                  "event-dim"（800）、"major-place-label"（950）、"event-glow"（2000）
-Layer 4: UI                    地図の外側（MapContainer の外）。ShopDetailBanner、NavigationBar など
+背景地図           ベースマップ（ラスター / ベクター）
+背景の色かぶせ      nicchyo-tint
+道                  nicchyo-road-*（fill → corridor → lane → overview-tint → edges）
+ランドマーク        nicchyo-landmarks*
+店舗                シンボルレイヤー（shopFeatures.ts）
+おでかけサポート・現在地などの重ね
+UI                  地図の外側（MapContainer の外）。ShopDetailBanner、NavigationBar など
 ```
 
-ペインの z-index は `MapOverlays.tsx` と `OptimizedShopLayerWithClustering.tsx` が正。グローバル UI（メニューなど）の z-index は [MOBILE_VIEWPORT_OPTIMIZATION.md](./MOBILE_VIEWPORT_OPTIMIZATION.md)。
+グローバル UI（メニューなど）の z-index は [MOBILE_VIEWPORT_OPTIMIZATION.md](./MOBILE_VIEWPORT_OPTIMIZATION.md)。
 
 ## 座標の基準（Single Source of Truth）
 
@@ -42,14 +48,13 @@ Layer 4: UI                    地図の外側（MapContainer の外）。ShopDe
 - 会場内外の判定は `isInsideSundayMarket()`（`SUNDAY_MARKET_LOCATION_BOUNDS`）
 
 座標の流れ: 実世界の緯度経度 → 道（`ROAD_CONFIG`）→ 店舗（`shop.lat` / `shop.lng`）→ マーカー。
-Leaflet 版では DivIcon の DOM がそのまま当たり判定になるので、描画と当たり判定は別に持たない。
 
 ## 店舗の重なり対策
 
 - 店舗が重なるのは、店舗間隔（道に沿って約 67px、zoom 20.5 での実測）より屋台が大きいため。表示の段階（`dot` / `stall` / `photo` / `nameplate`）を絞ることで、そのズームで必要な情報だけを出す（[MAP_MARKER_DESIGN.md](./MAP_MARKER_DESIGN.md)）
 - 木札は北側の店は北、南側の店は南へ逃がす（`getRoadSide`）
-- 店舗間隔の目安は `SPACING_CONFIG.minPixelsPerShop`（80px。`config/displayConfig.ts`）。`utils/zoomCalculator.ts` はこれを使って初期ズームなどを計算する関数群（`calculateOptimalInitialZoom` ほか）を持つが、`filterShopsByZoom` による店舗の間引きは現在の `MapView` では使っていない
+- 店舗間隔の目安は `SPACING_CONFIG.minPixelsPerShop`（80px。`config/displayConfig.ts`）。`utils/zoomCalculator.ts` はこれを使って初期ズームなどを計算する関数群（`calculateOptimalInitialZoom` ほか）を持つが、`filterShopsByZoom`（同ファイル）による店舗の間引きは現在の地図では使っていない
 
 ## 背景オーバーレイを変えるとき
 
-見た目は `scripts/build-market-tint.mjs` の SVG を編集してスクリプトを実行し直し、`public/images/maps/market-tint.webp` を作り直す。`BackgroundOverlay.tsx` の `MARKET_TINT_SVG`（比較実験用の SVG 版）も同じ内容にそろえる。範囲は `BackgroundOverlay.tsx` の `MARKET_BOUNDS`。
+見た目は `scripts/build-market-tint.mjs` の SVG を編集してスクリプトを実行し直し、`public/images/maps/market-tint.webp` を作り直す。範囲は `maplibre/MapViewMapLibre.tsx` の `MARKET_TINT_COORDS`。
