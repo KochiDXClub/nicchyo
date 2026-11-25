@@ -197,6 +197,18 @@ export async function fetchPublicShopData(locale: Locale = DEFAULT_LOCALE, mapSe
 
   if (selection) return loadMarketShopData(supabase, baseRows, activeContents, selection, scheduleEnabled, locale);
 
+  if (!scheduleEnabled) {
+    // ロールアウト前も店の ID は店舗 ID（stableIds）を使う。公開中の店舗 ID を行に付けないと、店が地図から消える
+    const publicIds = await readPublicShopIds(supabase);
+    baseRows = {
+      ...baseRows,
+      vendors: baseRows.vendors.flatMap((vendor) => {
+        const publicId = publicIds.get(vendor.id);
+        return typeof publicId === "number" ? [{ ...vendor, public_shop_id: publicId }] : [];
+      }),
+    };
+  }
+
   let ids = new Map<string, number>();
   let statuses = new Map<string, NonNullable<ShopProfile["nextMarketStatus"]>>();
   let marketDate: string | null = null;
@@ -229,7 +241,7 @@ export async function fetchPublicShopData(locale: Locale = DEFAULT_LOCALE, mapSe
   }
   const categories = await fetchCategories().catch(() => []);
   // 店の ID は常に店舗 ID（1000以上）を使う。場所の番号（旧番号）を店の ID にしない
-const positioned = buildVendorShops(baseRows, activeContents, { stableIds: true }).map(shop => withCategory(shop, categories));
+  const positioned = buildVendorShops(baseRows, activeContents, { stableIds: true }).map((shop) => withCategory(shop, categories));
   if (!scheduleEnabled) {
     const shops = await applyShopTranslations(positioned, locale);
     return { shops, profiles: shops };
