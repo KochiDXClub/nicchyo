@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { createClient } = vi.hoisted(() => ({ createClient: vi.fn(() => ({ kind: "client" })) }));
 vi.mock("@supabase/supabase-js", () => ({ createClient }));
 
-import { createAdminClient, createAdminClientOrThrow } from "./adminClient";
+import { createAdminClient, createAdminClientOrThrow, createTypedAdminClient } from "./adminClient";
 
 describe("adminClient", () => {
   beforeEach(() => {
@@ -24,6 +24,14 @@ describe("adminClient", () => {
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
     expect(createAdminClient()).toBeNull();
     expect(() => createAdminClientOrThrow()).toThrow("Supabase service role env vars are missing.");
+    expect(createTypedAdminClient()).toBeNull();
     expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("createTypedAdminClient は渡された URL を優先する", () => {
+    createTypedAdminClient("https://other.supabase.co");
+    expect(createClient).toHaveBeenCalledWith("https://other.supabase.co", "service-key", {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
   });
 });

@@ -12,7 +12,7 @@ describe("requiredPermissionForPath", () => {
 
   it("導線のないマイ店舗の店舗情報まわりの画面は store_edit", () => {
     expect(requiredPermissionForPath("/my-shop/schedule")).toBe("store_edit");
-    expect(requiredPermissionForPath("/my-shop/detail")).toBe("store_edit");
+    expect(requiredPermissionForPath("/vendor/store")).toBe("store_edit");
     expect(requiredPermissionForPath("/my-shop/ask")).toBe("store_edit");
   });
 

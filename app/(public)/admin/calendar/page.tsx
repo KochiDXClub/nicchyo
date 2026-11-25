@@ -64,7 +64,7 @@ export default function AdminCalendarPage() {
       </div>
 
       <div className="mb-4 flex items-center gap-3">
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-nicchyo-ink/70">
           <input
             type="checkbox"
             checked={e.showAll}
@@ -76,7 +76,7 @@ export default function AdminCalendarPage() {
       </div>
 
       {e.loading || d.loading ? (
-        <div className="flex items-center justify-center py-16 text-slate-400">読み込み中...</div>
+        <div className="flex items-center justify-center py-16 text-nicchyo-ink/55">読み込み中...</div>
       ) : (
         <div className="space-y-3">
           {e.sundays.map(({ dateIso, weeksAhead, items }) => {
@@ -85,7 +85,7 @@ export default function AdminCalendarPage() {
               <div
                 key={dateIso}
                 className={`rounded-xl border bg-white shadow-sm ${
-                  weeksAhead === 0 ? "border-amber-300" : "border-slate-200"
+                  weeksAhead === 0 ? "border-amber-300" : "border-line"
                 }`}
               >
                 <button
@@ -93,28 +93,28 @@ export default function AdminCalendarPage() {
                   onClick={() => toggleExpanded(dateIso)}
                   className={`flex w-full items-center gap-2 px-4 py-2.5 text-left ${
                     isExpanded ? "rounded-t-xl" : "rounded-xl"
-                  } ${weeksAhead === 0 ? "bg-amber-50" : "bg-slate-50"}`}
+                  } ${weeksAhead === 0 ? "bg-amber-50" : "bg-nicchyo-ink/5"}`}
                   aria-expanded={isExpanded}
                 >
                   {isExpanded ? (
-                    <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                    <ChevronDown className="h-4 w-4 shrink-0 text-nicchyo-ink/55" />
                   ) : (
-                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                    <ChevronRight className="h-4 w-4 shrink-0 text-nicchyo-ink/55" />
                   )}
-                  <span className="font-semibold text-slate-900">{formatEventDate(dateIso)}</span>
-                  <span className="text-xs text-slate-400">{getRelativeSundayLabel(weeksAhead)}</span>
+                  <span className="font-semibold text-nicchyo-ink">{formatEventDate(dateIso)}</span>
+                  <span className="text-xs text-nicchyo-ink/55">{getRelativeSundayLabel(weeksAhead)}</span>
                   <MarketDayStatusChip status={d.committedStatusFor(dateIso)} />
-                  <span className="text-xs text-slate-400">{items.length}件</span>
+                  <span className="text-xs text-nicchyo-ink/55">{items.length}件</span>
                 </button>
 
                 {isExpanded && (
                   <>
-                    <div className="border-b border-slate-100 px-4 py-3">
+                    <div className="border-b border-line px-4 py-3">
                       <MarketDayStatusEditorForDate days={d} dateIso={dateIso} withImage />
                     </div>
 
                     <div className="flex items-center justify-between px-4 py-2.5">
-                      <span className="text-xs font-semibold text-slate-600">予定</span>
+                      <span className="text-xs font-semibold text-nicchyo-ink/70">予定</span>
                       <button
                         type="button"
                         onClick={() => openCreateIn(dateIso)}
@@ -125,9 +125,9 @@ export default function AdminCalendarPage() {
                     </div>
 
                     {items.length === 0 ? (
-                      <p className="px-4 pb-4 text-sm text-slate-400">予定はありません</p>
+                      <p className="px-4 pb-4 text-sm text-nicchyo-ink/55">予定はありません</p>
                     ) : (
-                      <div className="divide-y divide-slate-100 border-t border-slate-100">
+                      <div className="divide-y divide-line border-t border-line">
                         {items.map((event) => (
                           <EventRow
                             key={`${dateIso}-${event.id}`}
@@ -152,14 +152,14 @@ export default function AdminCalendarPage() {
           })}
 
           {e.outOfRange.length > 0 && (
-            <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="rounded-t-xl bg-slate-50 px-4 py-2.5">
-                <span className="font-semibold text-slate-900">表示範囲外の予定</span>
-                <span className="ml-2 text-xs text-slate-400">
+            <div className="rounded-xl border border-line bg-white shadow-sm">
+              <div className="rounded-t-xl bg-nicchyo-ink/5 px-4 py-2.5">
+                <span className="font-semibold text-nicchyo-ink">表示範囲外の予定</span>
+                <span className="ml-2 text-xs text-nicchyo-ink/55">
                   過去、または{SUNDAY_COUNT}週より先
                 </span>
               </div>
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-line">
                 {e.outOfRange.map((event) => (
                   <EventRow
                     key={event.id}

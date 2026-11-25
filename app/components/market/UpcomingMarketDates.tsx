@@ -35,7 +35,7 @@ export default function UpcomingMarketDates({
       {showHeading && (
         <div className="mb-2 flex items-center gap-2">
           <h2 className="text-sm font-bold text-nicchyo-ink">{showMarketNames ? "これからの開催日" : "これからの日曜市"}</h2>
-          <span className="text-[11px] text-gray-400">運営からのお知らせ</span>
+          <span className="text-[11px] text-nicchyo-ink/55">運営からのお知らせ</span>
         </div>
       )}
 
@@ -100,7 +100,7 @@ function CalendarDateCard({
         }`}
       >
         <span className="text-sm font-bold text-nicchyo-ink">{date.dateLabel}</span>
-        <span className="text-[11px] text-gray-400">{date.relativeLabel}</span>
+        <span className="text-[11px] text-nicchyo-ink/55">{date.relativeLabel}</span>
         {showMarketName && marketName && <span className="text-xs font-bold text-nicchyo-primary">{marketName}</span>}
         {regularLabel && <span className="ml-auto text-xs text-nicchyo-ink/55">{regularLabel}</span>}
         {statusPresentation && (
@@ -177,7 +177,7 @@ function HighlightItem({
   return (
     <div className="overflow-hidden rounded-xl bg-nicchyo-base ring-1 ring-nicchyo-accent/40">
       {event.image_url && (
-        <div className="relative aspect-[16/9] w-full bg-gray-100">
+        <div className="relative aspect-[16/9] w-full bg-nicchyo-ink/5">
           <Image
             src={event.image_url}
             alt={event.title}
@@ -192,14 +192,14 @@ function HighlightItem({
           <span className="rounded-full bg-nicchyo-accent px-2 py-0.5 text-[10px] font-bold text-nicchyo-ink">
             {emoji} {relativeLabel}の見どころ
           </span>
-          <span className="text-[10px] text-gray-400">{label}</span>
+          <span className="text-[10px] text-nicchyo-ink/55">{label}</span>
         </div>
         <p className="mt-1.5 text-[15px] font-bold leading-snug text-nicchyo-ink">
           {event.title}
         </p>
         <EventMeta event={event} />
         {event.description && (
-          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-gray-600">
+          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-nicchyo-ink/70">
             {event.description}
           </p>
         )}
@@ -215,7 +215,7 @@ function EventItem({ event }: { event: MarketEvent }) {
   return (
     <li className="flex gap-2.5">
       {event.image_url ? (
-        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-nicchyo-ink/5">
           <Image src={event.image_url} alt="" fill className="object-cover" sizes="48px" />
         </div>
       ) : (
@@ -225,14 +225,14 @@ function EventItem({ event }: { event: MarketEvent }) {
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="rounded-full bg-black/5 px-1.5 py-0.5 text-[10px] font-bold text-gray-500">
+          <span className="rounded-full bg-black/5 px-1.5 py-0.5 text-[10px] font-bold text-nicchyo-ink/70">
             {event.image_url ? `${emoji} ${label}` : label}
           </span>
         </div>
         <p className="mt-1 text-sm font-bold leading-snug text-nicchyo-ink">{event.title}</p>
         <EventMeta event={event} />
         {event.description && (
-          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-gray-600">
+          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-nicchyo-ink/70">
             {event.description}
           </p>
         )}
@@ -248,11 +248,11 @@ function EventMeta({ event }: { event: MarketEvent }) {
   if (!time && !event.location && !isContinuous) return null;
 
   return (
-    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-gray-400">
+    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-nicchyo-ink/55">
       {time && <span>{time}</span>}
       {event.location && <span>{event.location}</span>}
       {isContinuous && (
-        <span className="rounded-full bg-black/5 px-1.5 py-0.5 font-semibold text-gray-500">
+        <span className="rounded-full bg-black/5 px-1.5 py-0.5 font-semibold text-nicchyo-ink/70">
           {formatEventPeriod(event)}まで
         </span>
       )}

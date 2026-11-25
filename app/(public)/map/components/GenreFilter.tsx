@@ -15,6 +15,7 @@ export function GenreFilter({
   favoritesActive,
   favoriteCount,
   onToggleFavorites,
+  labelFor = (cat: string) => cat,
 }: {
   categories: readonly string[];
   selected: string | null;
@@ -24,6 +25,8 @@ export function GenreFilter({
   /** 0件のときはチップ自体を出さない（初来訪者の画面を増やさないため） */
   favoriteCount: number;
   onToggleFavorites: () => void;
+  /** チップに出す表示名。絞り込みの値（categories の文字列）は変えず、見た目だけを差し替える。省略時は値そのまま */
+  labelFor?: (cat: string) => string;
 }) {
   const isSelectedHidden = selected !== null && categories.indexOf(selected) >= GENRE_PREVIEW_COUNT;
   const [expanded, setExpanded] = useState(isSelectedHidden);
@@ -78,7 +81,7 @@ export function GenreFilter({
       )}
       {previewCategories.map((cat) => (
         <motion.button key={cat} type="button" onClick={() => onSelect(cat)} className={chipClass(cat)} whileTap={{ scale: 0.88 }}>
-          {cat}
+          {labelFor(cat)}
         </motion.button>
       ))}
 
@@ -95,7 +98,7 @@ export function GenreFilter({
             exit={{ opacity: 0, scale: 0.82, y: -4 }}
             transition={{ duration: 0.18, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
           >
-            {cat}
+            {labelFor(cat)}
           </motion.button>
         ))}
       </AnimatePresence>

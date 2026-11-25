@@ -290,6 +290,17 @@ function SingleLineInput({
         onChange={(event) => setValue(event.target.value)}
         placeholder={question.placeholder}
         aria-label={kind === "url" ? "webサイトのURL" : isX ? "XのID" : "インスタグラムのID"}
+        /* SNSのIDはログイン情報ではないので、パスワード管理（iOSのパスワード候補・拡張機能）に拾わせない */
+        {...(kind === "handle"
+          ? {
+              name: isX ? "x-handle" : "instagram-handle",
+              autoComplete: "off",
+              spellCheck: false,
+              "data-1p-ignore": true,
+              "data-lpignore": "true",
+              "data-bwignore": "true",
+            }
+          : {})}
         autoCapitalize="none"
         autoCorrect="off"
         inputMode={kind === "url" ? "url" : "text"}
@@ -328,7 +339,7 @@ function YearsInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
   );
 }
 
-type LongTextId = "signature-pr" | "strength" | "motivation" | "sunday-love";
+type LongTextId = "signature-pr" | "strength" | "introduction" | "motivation" | "sunday-love";
 
 function LongTextInput({ snapshot, saving, onSubmit, onSkip, question }: InputProps) {
   const id = question.id as LongTextId;
@@ -336,6 +347,7 @@ function LongTextInput({ snapshot, saving, onSubmit, onSkip, question }: InputPr
     {
       "signature-pr": snapshot.signatureProduct?.description,
       strength: snapshot.strength,
+      introduction: snapshot.introduction,
       motivation: snapshot.motivation,
       "sunday-love": snapshot.sundayLove,
     }[id] ?? "";
@@ -359,7 +371,8 @@ function LongTextInput({ snapshot, saving, onSubmit, onSkip, question }: InputPr
         placeholder={question.placeholder}
         aria-label="こたえ"
         rows={4}
-        maxLength={300}
+        // 紹介文は商品の上に出るので、短く（DB の上限と同じ 200 字）
+        maxLength={id === "introduction" ? 200 : 300}
         className={cn(fieldClass, "resize-none leading-relaxed")}
       />
     </AskForm>

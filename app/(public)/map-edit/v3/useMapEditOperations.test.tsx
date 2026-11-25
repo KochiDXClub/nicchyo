@@ -312,7 +312,7 @@ describe("丁目の自動判定", () => {
 describe("useMapEditOperations.setSlotChome", () => {
   it("丁目を選ぶと手動設定になり、取り消せる", () => {
     const { hook } = setup([slot(1, 5, { chome: "一丁目" })]);
-    act(() => hook.result.current.ops.setSlotChome("loc-1", 2));
+    act(() => hook.result.current.ops.setSlotChome("loc-1", "二丁目"));
     expect(hook.result.current.shops[0]).toMatchObject({ chome: "二丁目", chomeLocked: true });
     act(() => hook.result.current.ops.undo());
     expect(hook.result.current.shops[0]).toMatchObject({ chome: "一丁目" });

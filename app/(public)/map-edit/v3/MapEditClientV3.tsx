@@ -109,6 +109,12 @@ export default function MapEditClientV3() {
     () => (selection?.kind === "slot" ? displayShops.find((s) => s.locationId === selection.id) ?? null : null),
     [displayShops, selection]
   );
+  // 選んだ区画の市（乗っている道の市。道が無ければ日曜市）。丁目の選択肢と見出しに使う
+  const selectedShopMarket = useMemo(() => {
+    if (!selectedShop) return null;
+    const roadMarketId = roads.find((r) => r.id === selectedShop.roadId)?.marketId;
+    return (roadMarketId ? data.markets.find((m) => m.id === roadMarketId) : null) ?? data.markets.find((m) => m.slug === "nichiyo") ?? null;
+  }, [selectedShop, roads, data.markets]);
   const selectedRoad = useMemo(
     () => (selection?.kind === "road" ? roads.find((r) => r.id === selection.id) ?? null : null),
     [roads, selection]
@@ -598,6 +604,8 @@ export default function MapEditClientV3() {
                   onApplyFieldObservation={() => ops.applyFieldObservation(selectedShop.locationId)}
                   onAddressChange={(address) => { ops.setSlotAddress(selectedShop.locationId, address); }}
                   onChomeChange={(value) => ops.setSlotChome(selectedShop.locationId, value)}
+                  chomeLabels={data.marketAreas.filter((area) => area.marketId === selectedShopMarket?.id).map((area) => area.label)}
+                  marketName={selectedShopMarket?.name}
                   autoChome={
                     selectedShop.roadId && selectedShop.roadDistanceM != null
                       ? judge(selectedShop.roadId, selectedShop.roadDistanceM)

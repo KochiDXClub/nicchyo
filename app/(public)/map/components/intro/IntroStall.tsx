@@ -3,17 +3,19 @@
 /**
  * 案内パネルのデモで使う、地図の部品。
  *
- * マーカーの HTML は本番と同じ markerHtmlGenerator から、探しているときのカードは
+ * 屋台の絵は本番の MapLibre と同じ描き起こし（stallSprites）から、探しているときのカードは
  * ShopScanCards と同じ形から、道の色は roadStyle.ts から、人影は crowdParts.ts から
  * 引いている。こうしておくと、屋台の絵や色分けを直したとき案内も一緒に変わる。
  *
  * 違うのは「地図が座標から位置を決める」代わりに、割合や px で置いているところだけ。
  */
 
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { ROAD_STYLE } from '../../config/roadStyle';
-import { getShopBannerImage, getShopThumbnailImage } from '@/lib/shopImages';
-import { generateShopMarkerHtml, sanitizeCssColor } from '../../utils/markerHtmlGenerator';
+import { getShopBannerImage, getShopMapPhotoImage, getShopThumbnailImage } from '@/lib/shopImages';
+import { escapeHtml, SHOP_FAVORITE_BADGE_HTML, sanitizeCssColor } from '../../utils/markerHtmlGenerator';
+import { PHOTO_STALL_PX, rasterizeStallWithPhoto, type StallState } from '../maplibre/stallSprites';
+import { STALL_PHOTO_HEIGHT_RATIO } from '../../config/stallParts';
 import { resolveStallColors } from '../../config/shopCategories';
 import { generateCrowdSvg, CROWD_KINDS } from '../../config/crowdParts';
 import type { Shop } from '../../types/shopData';
@@ -30,6 +32,48 @@ export type IntroStallState = {
   favorite?: boolean;
 };
 
+/**
+ * 本番の地図（MapLibre）と同じ写真入りの屋台を、同じ関数で描き起こす。
+ * 本番の屋台は Leaflet 版の丸窓（写真の丸いバッジ）ではなく、写真を枠に入れた屋台の絵。
+ * 写真の切り抜きと屋台の形は rasterizeStallWithPhoto に任せ、案内の絵が本番とずれないようにする。
+ */
+function IntroPhotoStall({ shop, state, scale }: { shop: Shop; state: StallState; scale: number }) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const photo = getShopMapPhotoImage(shop, false);
+    const thumb = getShopThumbnailImage(shop);
+    rasterizeStallWithPhoto(shop, state, photo, PHOTO_STALL_PX, 2, photo !== thumb ? thumb : undefined)
+      .then((data) => {
+        if (cancelled) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = data.width;
+        canvas.height = data.height;
+        canvas.getContext('2d')?.putImageData(data, 0, 0);
+        setSrc(canvas.toDataURL('image/png'));
+      })
+      .catch(() => {
+        if (!cancelled) setSrc(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [shop, state]);
+
+  // 高さは本番の PHOTO_STALL_PX に揃える。幅は屋根を削った比率で決まる
+  const height = PHOTO_STALL_PX * scale;
+  return (
+    <span className="block" style={{ height, width: height / STALL_PHOTO_HEIGHT_RATIO }}>
+      {src ? (
+        // 描き起こした画像（data URL）なので素の img で出す
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" draggable={false} className="block h-full w-full" />
+      ) : null}
+    </span>
+  );
+}
+
 export function IntroStallMarker({
   shop,
   side,
@@ -41,7 +85,7 @@ export function IntroStallMarker({
   /** 道のどちら側に置くか。木札の向きが変わる（本番と同じ shop-side-*） */
   side: 'north' | 'south';
   state?: IntroStallState;
-  /** 枠が小さいので、本番の 60px から少し縮める */
+  /** 枠が小さいので、本番の 84px から少し縮める */
   scale?: number;
   onClick?: () => void;
 }) {
@@ -53,22 +97,14 @@ export function IntroStallMarker({
    * 全店に出すと道の外へ伸びた札が画面端で切れ、静止時の地図が文字で埋まるため。
    * 探しているあいだは IntroScanCard が写真ごと前に出す。
    */
-  const lod = state.selected ? 'nameplate' : 'photo';
-
-  const html = useMemo(
-    () =>
-      generateShopMarkerHtml(shop, {
-        bannerImage: getShopThumbnailImage(shop),
-        illustrationSize: 'medium',
-        includeNameplate: lod === 'nameplate',
-      }),
-    [shop, lod]
-  );
+  const showNameplate = Boolean(state.selected);
+  // 本番と同じ状態の絵。選ばれた店は selected、検索で残った店は search
+  const stallState: StallState = state.selected ? 'selected' : state.highlighted ? 'search' : 'normal';
 
   const classNames = [
     'custom-shop-marker',
     `shop-side-${side}`,
-    `shop-lod-${lod}`,
+    showNameplate ? 'shop-lod-nameplate' : 'shop-lod-photo',
     state.favorite ? 'is-favorite' : '',
     state.selected ? 'shop-marker-selected' : '',
     state.highlighted ? 'shop-marker-search' : '',
@@ -83,13 +119,22 @@ export function IntroStallMarker({
       aria-label={`${shop.name}を開く`}
       className={`${classNames} absolute -translate-x-1/2 -translate-y-full appearance-none border-0 bg-transparent p-0 transition-[opacity,filter] duration-300`}
       style={{
-        // 本番は地図のズームで決まる値。デモは枠に収まる倍率を固定で入れる
-        ['--shop-marker-zoom-scale' as string]: String(scale),
         opacity: state.dimmed ? 0.25 : 1,
         filter: state.dimmed ? 'saturate(0.15)' : undefined,
       }}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    >
+      <span className="relative block">
+        <IntroPhotoStall shop={shop} state={stallState} scale={scale} />
+        {state.favorite ? (
+          <span className="absolute right-0 top-0 block" dangerouslySetInnerHTML={{ __html: SHOP_FAVORITE_BADGE_HTML }} />
+        ) : null}
+        {showNameplate ? (
+          <span className="shop-nameplate absolute left-1/2 top-full -translate-x-1/2">
+            <span className="shop-nameplate-text">{escapeHtml(shop.name)}</span>
+          </span>
+        ) : null}
+      </span>
+    </button>
   );
 }
 

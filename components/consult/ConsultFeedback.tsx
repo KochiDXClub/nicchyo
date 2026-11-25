@@ -84,7 +84,7 @@ export function ConsultFeedback({
 
   if (status === "sent") {
     return (
-      <p className={`text-right text-[11px] text-slate-400 ${className}`}>
+      <p className={`text-right text-[11px] text-nicchyo-ink/55 ${className}`}>
         {t("ありがとうございました")}
       </p>
     );
@@ -93,12 +93,12 @@ export function ConsultFeedback({
   return (
     <div className={className}>
       <div className="flex items-center justify-end gap-1">
-        <span className="mr-1 text-[11px] text-slate-400">{t("この答えはどうでしたか？")}</span>
+        <span className="mr-1 text-[11px] text-nicchyo-ink/55">{t("この答えはどうでしたか？")}</span>
         <button
           type="button"
           onClick={() => void send(1, false)}
           disabled={isSending}
-          className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-nicchyo-primary disabled:opacity-50"
+          className="rounded-full p-1.5 text-nicchyo-ink/55 transition hover:bg-nicchyo-ink/5 hover:text-nicchyo-primary disabled:opacity-50"
           aria-label={t("役に立った")}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
@@ -108,7 +108,7 @@ export function ConsultFeedback({
         <button
           type="button"
           onClick={() => setOpen((prev) => !prev)}
-          className={`rounded-full p-1.5 transition hover:bg-slate-100 ${open ? accent.text : "text-slate-400 hover:text-rose-400"}`}
+          className={`rounded-full p-1.5 transition hover:bg-nicchyo-ink/5 ${open ? accent.text : "text-nicchyo-ink/55 hover:text-rose-400"}`}
           aria-label={t("改善が必要")}
           aria-expanded={open}
         >
@@ -140,7 +140,7 @@ export function ConsultFeedback({
               }}
               placeholder={t("改善点を教えてください（任意）")}
               maxLength={200}
-              className={`h-9 flex-1 rounded-full border ${accent.border} bg-white px-3 text-[12px] text-slate-700 placeholder:text-slate-300 outline-none focus:border-slate-300`}
+              className={`h-9 flex-1 rounded-full border ${accent.border} bg-white px-3 text-[12px] text-nicchyo-ink placeholder:text-nicchyo-ink/40 outline-none focus:border-nicchyo-ink/20`}
             />
             <button
               type="button"
@@ -152,12 +152,12 @@ export function ConsultFeedback({
             </button>
           </div>
           {/* やりとりの中身は既定で送らない。選んでいただいたときだけ添える（#629） */}
-          <label className="flex cursor-pointer items-center gap-1.5 py-1 text-[11px] text-slate-500">
+          <label className="flex cursor-pointer items-center gap-1.5 py-1 text-[11px] text-nicchyo-ink/70">
             <input
               type="checkbox"
               checked={shareTranscript}
               onChange={(e) => setShareTranscript(e.target.checked)}
-              className={`h-3.5 w-3.5 rounded border-slate-300 ${accent.check} ${accent.ring}`}
+              className={`h-3.5 w-3.5 rounded border-nicchyo-ink/20 ${accent.check} ${accent.ring}`}
             />
             {t("このときのやりとりも送る（改善に使わせていただきます）")}
           </label>

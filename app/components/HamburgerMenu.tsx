@@ -44,11 +44,11 @@ export default function HamburgerMenu() {
   };
 
   const isActive = (href: string) => pathname === href || pathname?.startsWith(`${href}/`);
-  const menuItemClass = (href: string, hoverClass = 'hover:bg-gray-50') =>
+  const menuItemClass = (href: string, hoverClass = 'hover:bg-nicchyo-ink/5') =>
     `flex items-center gap-3 rounded-lg px-4 py-3 transition ${
       isActive(href)
         ? `${theme.accent.bg} ${theme.accent.text} shadow-sm`
-        : `text-gray-700 ${hoverClass}`
+        : `text-nicchyo-ink ${hoverClass}`
     }`;
 
   return (
@@ -57,7 +57,7 @@ export default function HamburgerMenu() {
       <button
         type="button"
         onClick={toggleMenu}
-        className={`hamburger-button fixed top-4 right-4 z-[10002] flex h-12 w-12 items-center justify-center rounded-lg bg-white/90 text-gray-700 shadow-md transition hover:bg-white hover:shadow-lg ${
+        className={`hamburger-button fixed top-4 right-4 z-[10002] flex h-12 w-12 items-center justify-center rounded-lg bg-white/90 text-nicchyo-ink shadow-md transition hover:bg-white hover:shadow-lg ${
           isMenuOpen ? "is-open" : "is-closed"
         }`}
         aria-label="メニュー"
@@ -79,7 +79,7 @@ export default function HamburgerMenu() {
 
       {/* スライドメニュー */}
       <div
-        className={`fixed right-0 top-0 z-[9999] h-[100dvh] h-[calc(var(--vh,1vh)*100)] w-80 max-w-[90vw] transform bg-white shadow-2xl transition-transform duration-300 lg:border-l lg:border-gray-200 ${
+        className={`fixed right-0 top-0 z-[9999] h-[100dvh] h-[calc(var(--vh,1vh)*100)] w-80 max-w-[90vw] transform bg-white shadow-2xl transition-transform duration-300 lg:border-l lg:border-line ${
           isMenuOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{
@@ -99,7 +99,7 @@ export default function HamburgerMenu() {
           </div>
 
           {/* プロフィール表示 */}
-          <div className="border-b border-gray-200 bg-gradient-to-r from-amber-50 to-orange-50 px-6 py-4">
+          <div className="border-b border-line bg-gradient-to-r from-amber-50 to-orange-50 px-6 py-4">
             {isLoggedIn && user ? (
               <Link href={permissions.isVendor ? "/vendor/account" : "/my-profile"} onClick={closeMenu} className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-amber-500 text-white text-xl font-bold">
@@ -110,8 +110,8 @@ export default function HamburgerMenu() {
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-gray-800">{user.name}</p>
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-600">
+                  <p className="text-sm font-semibold text-nicchyo-ink">{user.name}</p>
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-nicchyo-ink/70">
                     <span className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 border border-amber-100">
                       <MenuIcon name="user" className="h-3.5 w-3.5 text-amber-700" />
                       一般ユーザー
@@ -135,7 +135,7 @@ export default function HamburgerMenu() {
                 </div>
               </Link>
             ) : (
-              <div className="text-sm text-gray-700">
+              <div className="text-sm text-nicchyo-ink">
                 ログインすると保存やお買い物リストが利用できます。
               </div>
             )}
@@ -157,7 +157,7 @@ export default function HamburgerMenu() {
                           <MenuIcon name="settings" className={`h-5 w-5 ${isActive('/admin') ? 'text-white' : 'text-red-600'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">管理者ページ</p>
-                            <p className={`text-xs ${isActive('/admin') ? 'text-white/80' : 'text-gray-500'}`}>運用・対応・分析・設定はこちら</p>
+                            <p className={`text-xs ${isActive('/admin') ? 'text-white/80' : 'text-nicchyo-ink/70'}`}>運用・対応・分析・設定はこちら</p>
                           </div>
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
                             管理
@@ -165,7 +165,7 @@ export default function HamburgerMenu() {
                         </Link>
                       </MenuLi>
                       <li>
-                        <div className="my-3 border-t border-gray-200" />
+                        <div className="my-3 border-t border-line" />
                       </li>
                     </>
                   )}
@@ -189,7 +189,7 @@ export default function HamburgerMenu() {
                           <MenuIcon name="shield" className={`h-5 w-5 ${isActive('/moderator') ? 'text-white' : 'text-purple-600'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">モデレーションダッシュボード</p>
-                            <p className={`text-xs ${isActive('/moderator') ? 'text-white/80' : 'text-gray-500'}`}>投稿管理</p>
+                            <p className={`text-xs ${isActive('/moderator') ? 'text-white/80' : 'text-nicchyo-ink/70'}`}>投稿管理</p>
                           </div>
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/moderator') ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'}`}>
                             モデレーター
@@ -197,7 +197,7 @@ export default function HamburgerMenu() {
                         </Link>
                       </MenuLi>
                       <li>
-                        <div className="my-3 border-t border-gray-200" />
+                        <div className="my-3 border-t border-line" />
                       </li>
                     </>
                   )}
@@ -221,7 +221,7 @@ export default function HamburgerMenu() {
                           <MenuIcon name="shop" className={`h-5 w-5 ${isActive('/my-shop') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">マイ店舗</p>
-                            <p className={`text-xs ${isActive('/my-shop') ? 'text-white/80' : 'text-gray-500'}`}>店舗ページを見る</p>
+                            <p className={`text-xs ${isActive('/my-shop') ? 'text-white/80' : 'text-nicchyo-ink/70'}`}>店舗ページを見る</p>
                           </div>
                         </Link>
                       </MenuLi>
@@ -234,7 +234,7 @@ export default function HamburgerMenu() {
                           <MenuIcon name="pencil" className={`h-5 w-5 ${isActive('/vendor/posts') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">近況を出す</p>
-                            <p className={`text-xs ${isActive('/vendor/posts') ? 'text-white/80' : 'text-gray-500'}`}>写真1枚で今日のお店を伝える</p>
+                            <p className={`text-xs ${isActive('/vendor/posts') ? 'text-white/80' : 'text-nicchyo-ink/70'}`}>写真1枚で今日のお店を伝える</p>
                           </div>
                         </Link>
                       </MenuLi>
@@ -247,7 +247,7 @@ export default function HamburgerMenu() {
                           <MenuIcon name="store-edit" className={`h-5 w-5 ${isActive('/vendor/store') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">出店情報の更新</p>
-                            <p className={`text-xs ${isActive('/vendor/store') ? 'text-white/80' : 'text-gray-500'}`}>営業時間・商品・SNSなど</p>
+                            <p className={`text-xs ${isActive('/vendor/store') ? 'text-white/80' : 'text-nicchyo-ink/70'}`}>営業時間・商品・SNSなど</p>
                           </div>
                         </Link>
                       </MenuLi>
@@ -260,7 +260,7 @@ export default function HamburgerMenu() {
                           <MenuIcon name="chart" className={`h-5 w-5 ${isActive('/vendor/analytics') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">お店の分析</p>
-                            <p className={`text-xs ${isActive('/vendor/analytics') ? 'text-white/80' : 'text-gray-500'}`}>見られた回数・お客さんの反応</p>
+                            <p className={`text-xs ${isActive('/vendor/analytics') ? 'text-white/80' : 'text-nicchyo-ink/70'}`}>見られた回数・お客さんの反応</p>
                           </div>
                         </Link>
                       </MenuLi>
@@ -273,7 +273,7 @@ export default function HamburgerMenu() {
                           <MenuIcon name="sparkles" className={`h-5 w-5 ${isActive('/vendor/ai-knowledge') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">にちよさんが覚えちゅうこと</p>
-                            <p className={`text-xs ${isActive('/vendor/ai-knowledge') ? 'text-white/80' : 'text-gray-500'}`}>見る・直す・忘れさせる</p>
+                            <p className={`text-xs ${isActive('/vendor/ai-knowledge') ? 'text-white/80' : 'text-nicchyo-ink/70'}`}>見る・直す・忘れさせる</p>
                           </div>
                         </Link>
                       </MenuLi>
@@ -286,7 +286,7 @@ export default function HamburgerMenu() {
                           <MenuIcon name="user" className={`h-5 w-5 ${isActive('/vendor/account') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">アカウント設定</p>
-                            <p className={`text-xs ${isActive('/vendor/account') ? 'text-white/80' : 'text-gray-500'}`}>名前・メール・パスワード変更</p>
+                            <p className={`text-xs ${isActive('/vendor/account') ? 'text-white/80' : 'text-nicchyo-ink/70'}`}>名前・メール・パスワード変更</p>
                           </div>
                         </Link>
                       </MenuLi>
@@ -299,12 +299,12 @@ export default function HamburgerMenu() {
                           <MenuIcon name="help" className={`h-5 w-5 ${isActive('/vendor/help') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">よくある質問</p>
-                            <p className={`text-xs ${isActive('/vendor/help') ? 'text-white/80' : 'text-gray-500'}`}>各機能の説明</p>
+                            <p className={`text-xs ${isActive('/vendor/help') ? 'text-white/80' : 'text-nicchyo-ink/70'}`}>各機能の説明</p>
                           </div>
                         </Link>
                       </MenuLi>
                       <li>
-                        <div className="my-3 border-t border-gray-200" />
+                        <div className="my-3 border-t border-line" />
                       </li>
                     </>
                   )}
@@ -317,10 +317,10 @@ export default function HamburgerMenu() {
                           onClick={closeMenu}
                           className={menuItemClass('/favorites', 'hover:bg-amber-50')}
                         >
-                          <MenuIcon name="bag" className={`h-5 w-5 ${isActive('/favorites') ? 'text-white' : 'text-gray-600'}`} />
+                          <MenuIcon name="bag" className={`h-5 w-5 ${isActive('/favorites') ? 'text-white' : 'text-nicchyo-ink/70'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">お気に入り</p>
-                            <p className={`text-xs ${isActive('/favorites') ? 'text-white/80' : 'text-gray-500'}`}>気になったお店と商品</p>
+                            <p className={`text-xs ${isActive('/favorites') ? 'text-white/80' : 'text-nicchyo-ink/70'}`}>気になったお店と商品</p>
                           </div>
                         </Link>
                       </MenuLi>
@@ -328,14 +328,14 @@ export default function HamburgerMenu() {
                   )}
 
                   <li>
-                    <div className="my-3 border-t border-gray-200" />
+                    <div className="my-3 border-t border-line" />
                   </li>
 
                   <li>
                     <button
                       type="button"
                       onClick={handleLogout}
-                      className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-gray-700 transition hover:bg-red-50 hover:text-red-600"
+                      className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-nicchyo-ink transition hover:bg-red-50 hover:text-red-600"
                     >
                       <MenuIcon name="logout" className="h-5 w-5 text-red-600" />
                       <p className="text-sm font-medium">ログアウト</p>
@@ -361,7 +361,7 @@ export default function HamburgerMenu() {
               )}
 
               <li>
-                <div className="my-3 border-t border-gray-200" />
+                <div className="my-3 border-t border-line" />
               </li>
 
               <MenuLi href="/about">
@@ -370,7 +370,7 @@ export default function HamburgerMenu() {
                   onClick={closeMenu}
                   className={menuItemClass('/about')}
                 >
-                  <MenuIcon name="info" className={`h-5 w-5 ${isActive('/about') ? 'text-white' : 'text-gray-600'}`} />
+                  <MenuIcon name="info" className={`h-5 w-5 ${isActive('/about') ? 'text-white' : 'text-nicchyo-ink/70'}`} />
                   <p className="text-sm font-medium">このサービスについて</p>
                 </Link>
               </MenuLi>
@@ -380,7 +380,7 @@ export default function HamburgerMenu() {
                   onClick={closeMenu}
                   className={menuItemClass('/analysis')}
                 >
-                  <MenuIcon name="chart" className={`h-5 w-5 ${isActive('/analysis') ? 'text-white' : 'text-gray-600'}`} />
+                  <MenuIcon name="chart" className={`h-5 w-5 ${isActive('/analysis') ? 'text-white' : 'text-nicchyo-ink/70'}`} />
                   <p className="text-sm font-medium">日曜市をデータで見る</p>
                   {/* 中身がまだサンプル値なので、開く前に分かるようにしておく */}
                   <span
@@ -402,7 +402,7 @@ export default function HamburgerMenu() {
                       onClick={closeMenu}
                       className={menuItemClass('/login')}
                     >
-                      <MenuIcon name="user" className={`h-5 w-5 ${isActive('/login') ? 'text-white' : 'text-gray-600'}`} />
+                      <MenuIcon name="user" className={`h-5 w-5 ${isActive('/login') ? 'text-white' : 'text-nicchyo-ink/70'}`} />
                       <p className="text-sm font-medium">ログイン</p>
                     </Link>
                   </MenuLi>
@@ -412,7 +412,7 @@ export default function HamburgerMenu() {
                       onClick={closeMenu}
                       className={menuItemClass('/signup')}
                     >
-                      <MenuIcon name="user" className={`h-5 w-5 ${isActive('/signup') ? 'text-white' : 'text-gray-600'}`} />
+                      <MenuIcon name="user" className={`h-5 w-5 ${isActive('/signup') ? 'text-white' : 'text-nicchyo-ink/70'}`} />
                       <p className="text-sm font-medium">アカウントを作成</p>
                     </Link>
                   </MenuLi>
@@ -424,7 +424,7 @@ export default function HamburgerMenu() {
                   onClick={closeMenu}
                   className={menuItemClass('/faq')}
                 >
-                  <MenuIcon name="help" className={`h-5 w-5 ${isActive('/faq') ? 'text-white' : 'text-gray-600'}`} />
+                  <MenuIcon name="help" className={`h-5 w-5 ${isActive('/faq') ? 'text-white' : 'text-nicchyo-ink/70'}`} />
                   <p className="text-sm font-medium">よくある質問</p>
                 </Link>
               </MenuLi>
@@ -434,7 +434,7 @@ export default function HamburgerMenu() {
                   onClick={closeMenu}
                   className={menuItemClass('/contact')}
                 >
-                  <MenuIcon name="mail" className={`h-5 w-5 ${isActive('/contact') ? 'text-white' : 'text-gray-600'}`} />
+                  <MenuIcon name="mail" className={`h-5 w-5 ${isActive('/contact') ? 'text-white' : 'text-nicchyo-ink/70'}`} />
                   <p className="text-sm font-medium">お問い合わせ</p>
                 </Link>
               </MenuLi>
@@ -442,8 +442,8 @@ export default function HamburgerMenu() {
           </nav>
 
           {/* フッター */}
-          <div className="border-t border-gray-200 px-6 py-4">
-            <p className="text-xs text-gray-500 text-center">&copy; 2026 nicchyo</p>
+          <div className="border-t border-line px-6 py-4">
+            <p className="text-xs text-nicchyo-ink/70 text-center">&copy; 2026 nicchyo</p>
           </div>
         </div>
       </div>
