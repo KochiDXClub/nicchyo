@@ -68,7 +68,7 @@ const statusConfig: Record<
   },
   deleted: {
     label: "削除済み",
-    className: "bg-gray-500 text-white",
+    className: "bg-nicchyo-ink/70 text-white",
     icon: "✕",
   },
 };
@@ -77,7 +77,7 @@ export const StatusBadge = React.memo(function StatusBadge({
   status,
   customLabel,
 }: StatusBadgeProps) {
-  const config = statusConfig[status] ?? { label: status, className: "bg-gray-400 text-white", icon: "?" };
+  const config = statusConfig[status] ?? { label: status, className: "bg-nicchyo-ink/55 text-white", icon: "?" };
   const label = customLabel || config.label;
 
   return (

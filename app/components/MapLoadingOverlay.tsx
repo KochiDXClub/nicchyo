@@ -23,7 +23,7 @@ export default function MapLoadingOverlay({ minStage = "navigating", leaving = f
 
   return (
     <div
-      className={`map-loading-overlay fixed inset-0 z-[9999] flex flex-col bg-gradient-to-b from-amber-50 via-orange-50 to-white text-gray-800${
+      className={`map-loading-overlay fixed inset-0 z-[9999] flex flex-col bg-gradient-to-b from-amber-50 via-orange-50 to-white text-nicchyo-ink${
         leaving ? " is-leaving" : ""
       }`}
       aria-busy={!leaving}

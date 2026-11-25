@@ -97,7 +97,7 @@ export function MenuSheet({
             exit={{ opacity: 0 }}
             transition={fadeTransition}
             className={`fixed inset-0 z-[9995] ${
-              dropdown ? "bg-nicchyo-ink/15" : "bg-slate-900/40 backdrop-blur-[3px]"
+              dropdown ? "bg-nicchyo-ink/15" : "bg-nicchyo-ink/40 backdrop-blur-[3px]"
             }`}
             onClick={onClose}
             aria-hidden
@@ -392,7 +392,7 @@ export function MenuToggleButton({
               ? { duration: 0 }
               : { type: "spring", damping: 24, stiffness: 420 }
           }
-          className={`relative flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-white shadow-[0_6px_16px_-4px_rgba(15,23,42,0.5)] ${inlineOnLg ? "lg:h-9 lg:w-9" : ""}`}
+          className={`relative flex h-11 w-11 items-center justify-center rounded-full bg-nicchyo-ink text-white shadow-[0_6px_16px_-4px_rgba(15,23,42,0.5)] ${inlineOnLg ? "lg:h-9 lg:w-9" : ""}`}
         >
           {/* 回転だけだと格子も×も見た目が変わらないので、重ねて入れ替える */}
           <motion.span
@@ -411,7 +411,7 @@ export function MenuToggleButton({
           </motion.span>
         </motion.span>
         <span
-          className={`text-[10px] font-medium leading-none tracking-tight text-slate-500 ${
+          className={`text-[10px] font-medium leading-none tracking-tight text-nicchyo-ink/70 ${
             inlineOnLg ? "lg:text-sm lg:font-semibold lg:text-nicchyo-ink" : ""
           }`}
         >
@@ -425,7 +425,7 @@ export function MenuToggleButton({
 /** 下部バー左右のタブの外枠のクラス。リンクのタブと、押すとメニューが開くタブ（近況の選択など）で共通 */
 export function bottomNavItemClass(isActive: boolean, inlineOnLg = false): string {
   return `group flex h-full flex-1 flex-col items-center justify-center gap-1 transition-colors duration-200 ${
-    isActive ? "text-amber-600" : "text-slate-400 hover:text-slate-600"
+    isActive ? "text-amber-600" : "text-nicchyo-ink/55 hover:text-nicchyo-ink/70"
   } ${inlineOnLg ? "lg:flex-none lg:flex-row lg:gap-2 lg:rounded-full lg:px-4 lg:hover:bg-nicchyo-ink/5" : ""}`;
 }
 
@@ -503,7 +503,7 @@ export function BottomNavBackBar({
       <button
         type="button"
         onClick={onClick}
-        className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-slate-600 transition active:scale-95 hover:bg-slate-100"
+        className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-nicchyo-ink/70 transition active:scale-95 hover:bg-nicchyo-ink/5"
       >
         <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden />
         {label}
