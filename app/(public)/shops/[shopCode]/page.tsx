@@ -3,7 +3,7 @@ import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import { readPublicLegacyIdentities } from "@/lib/shops/publicIdentity.server";
 import { headers } from "next/headers";
-import { formatShopIdToCode, normalizeShopCodeToId } from "@/lib/shops/route";
+import { formatShopPageCode, normalizeShopCodeToId } from "@/lib/shops/route";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { SITE_URL } from "@/lib/constants";
 import { resolveShopImage } from "@/lib/shopImages";
@@ -62,8 +62,7 @@ export async function generateMetadata({ params }: ShopPageProps): Promise<Metad
   const shopId = normalizeShopCodeToId(shopCode);
   if (shopId === null) return {};
 
-  const code = formatShopIdToCode(shopId);
-  if (!code) return {};
+  const code = formatShopPageCode(shopId);
 
   const resolvedId = await resolvePublicId(shopId);
   const shop = resolvedId === null ? null : await fetchShop(resolvedId);
@@ -111,14 +110,11 @@ export default async function ShopPage({ params }: ShopPageProps) {
     notFound();
   }
 
-  const normalizedCode = formatShopIdToCode(shopId);
-
-  if (normalizedCode === null) {
-    notFound();
-  }
-
+  // 確認済みの旧番号は、先に固定URLへ移す（表示用の番号で止めると、転送する前に 404 になる）
   const resolvedId = await resolvePublicId(shopId);
   if (resolvedId !== null && resolvedId !== shopId) redirect(`/shops/${resolvedId}`);
+
+  const normalizedCode = formatShopPageCode(shopId);
   const shop = resolvedId === null ? null : await fetchShop(resolvedId);
   const shopName = shop?.name?.trim() || `店舗 ${normalizedCode}`;
 
