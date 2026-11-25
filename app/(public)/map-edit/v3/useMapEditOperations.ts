@@ -1,7 +1,6 @@
 import { useCallback, useRef } from "react";
 import type { MapRouteConfig, MapRoutePoint } from "../../map/types/mapRoute";
-import { roadIdOfSlot, roadSlotLatLng } from "@/lib/map/roadSlotPosition";
-import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
+import { roadIdOfSlot } from "@/lib/map/roadSlotPosition";
 import {
   recordOperation,
   redoOperation,
@@ -9,7 +8,6 @@ import {
   type EditHistory,
   type EditState,
 } from "./editHistory";
-import type { SlotSplitPlan } from "./slotSplitPlan";
 import {
   ROAD_KIND_DEFAULT_WIDTH,
   type EditableLandmark,
@@ -49,40 +47,6 @@ type Params = {
 /** 空き区画の表示名（出店者がいない区画は店番から名前を作る） */
 export function vacantShopName(position: number) {
   return `未設定店舗 ${position}`;
-}
-
-/**
- * 新しい区画を置く、道の中心線からの距離（m）の既定値。その道に区画が無いときに使う。
- * 実測（market_locations 300件）の店舗の中心線からの横距離の中央値（config/roadStyle.ts 参照）。
- */
-export const DEFAULT_SLOT_OFFSET_M = 7.5;
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-/**
- * 道に新しく置く区画の、道の中心線からの距離（m）。同じ道・同じ側の区画の中央値に揃え、
- * 無ければ同じ道の区画の中央値、それも無ければ既定値。区画分けのプレビューと適用の両方で使う。
- */
-export function newSlotOffsetM(slotsOnRoad: EditableShop[], side: "left" | "right"): number {
-  return (
-    median(slotsOnRoad.filter((s) => s.roadSide === side).map((s) => s.roadOffsetM ?? 0)) ??
-    median(slotsOnRoad.map((s) => s.roadOffsetM ?? 0)) ??
-    DEFAULT_SLOT_OFFSET_M
-  );
-}
-
-/** 使われていない店番を小さい順に count 個。足りなければ null */
-function freePositions(used: Set<number>, count: number): number[] | null {
-  const result: number[] = [];
-  for (let n = MIN_SHOP_ID; n <= MAX_SHOP_ID && result.length < count; n += 1) {
-    if (!used.has(n)) result.push(n);
-  }
-  return result.length === count ? result : null;
 }
 
 /**
@@ -353,105 +317,6 @@ export function useMapEditOperations(params: Params) {
   );
 
   /**
-   * 区画分けツールの結果（slotSplitPlan.ts の planRoadSlots）を当てはめる。
-   * 残す区画は位置だけ動かし（店番・出店者はそのまま）、足りない分は空いている店番で新しく作り、
-   * 多すぎる空き区画は消す。当てはめられたら true
-   */
-  const applySlotPlan = useCallback(
-    (road: EditableRoad, plan: SlotSplitPlan): boolean => {
-      if (plan.error) {
-        setMessage(plan.error);
-        return false;
-      }
-      const blocked = shops.find((shop) => shop.placeName && plan.deletes.some((entry) => entry.locationId === shop.locationId));
-      if (blocked) {
-        setMessage(`区画 ${blocked.position} は名前付きの出店場所のため削除できません。`);
-        return false;
-      }
-      const unassignedAfter = shops.filter((s) => !s.vendorId).length - plan.deletes.length + plan.creates.length;
-      if (unassignedAfter > mapSettingsLimits.maxUnassignedShopMarkers) {
-        setMessage(
-          `空き区画が ${unassignedAfter} 件になり、上限（${mapSettingsLimits.maxUnassignedShopMarkers} 件）を超えます。上限は /admin/settings で変えられます。`
-        );
-        return false;
-      }
-
-      const deletedIds = new Set(plan.deletes.map((d) => d.locationId));
-      const used = new Set(shops.filter((s) => !deletedIds.has(s.locationId)).map((s) => s.position));
-      const positions = freePositions(used, plan.creates.length);
-      if (!positions) {
-        setMessage(`空いている店番（${MIN_SHOP_ID}〜${MAX_SHOP_ID}）が足りないため、区画を増やせません。`);
-        return false;
-      }
-
-      const onRoad = shops.filter((s) => s.roadId === road.id && !deletedIds.has(s.locationId));
-      // 新しい区画の丁目は、道の上の位置から自動で決める。境目のすぐ上は決めずに空けておく
-      // （区画の詳細で選んでもらう）。境目の設定が無い道・環境では、従来どおり同じ道の上で
-      // いちばん近い区画に合わせる（区画レーンで丁目ごとにまとめるため）
-      let nearBoundaryCount = 0;
-      const chomeNear = (distanceM: number) =>
-        onRoad
-          .filter((s) => s.chome)
-          .reduce<{ chome?: string; d: number }>(
-            (best, s) => {
-              const d = Math.abs((s.roadDistanceM ?? 0) - distanceM);
-              return d < best.d ? { chome: s.chome, d } : best;
-            },
-            { chome: undefined, d: Infinity }
-          ).chome;
-      const chomeFor = (distanceM: number): string | undefined => {
-        const judged = judgeChome?.(road.id, distanceM);
-        if (judged?.status === "ok") return legacyChomeLabel(judged.chomeId);
-        if (judged?.status === "near_boundary") {
-          nearBoundaryCount += 1;
-          return undefined;
-        }
-        return chomeNear(distanceM);
-      };
-
-      const moveTo = new Map(plan.moves.map((m) => [m.locationId, m.toM]));
-      const nextShops = shops
-        .filter((s) => !deletedIds.has(s.locationId))
-        .map((s) => {
-          const toM = moveTo.get(s.locationId);
-          if (toM === undefined || !s.roadSide) return s;
-          const latLng = roadSlotLatLng(road.points, { distanceM: toM, side: s.roadSide, offsetM: s.roadOffsetM ?? 0 });
-          return { ...s, roadDistanceM: toM, ...latLng };
-        });
-      const stamp = Date.now();
-      plan.creates.forEach((create, index) => {
-        const position = positions[index];
-        const offsetM = newSlotOffsetM(onRoad, create.side);
-        nextShops.push({
-          locationId: `new-${stamp}-${index}`,
-          id: position,
-          position,
-          name: vacantShopName(position),
-          chome: chomeFor(create.distanceM),
-          roadId: road.id,
-          roadDistanceM: create.distanceM,
-          roadSide: create.side,
-          roadOffsetM: offsetM,
-          ...roadSlotLatLng(road.points, { distanceM: create.distanceM, side: create.side, offsetM }),
-        });
-      });
-
-      commit(
-        { shops: nextShops },
-        "道",
-        `${road.name} を区画分け（追加 ${plan.creates.length}・削除 ${plan.deletes.length}・移動 ${plan.moves.length}）`
-      );
-      if (nearBoundaryCount > 0) {
-        setMessage(
-          `丁目の境目のすぐ上に置いた区画が ${nearBoundaryCount} 件あります。丁目は未設定なので、区画の詳細で選んでください。`
-        );
-      }
-      return true;
-    },
-    [shops, commit, setMessage, mapSettingsLimits.maxUnassignedShopMarkers, judgeChome]
-  );
-
-  /**
    * 区画の丁目を直す。丁目を選ぶと「手で設定」になり、自動判定で上書きしない。
    * "auto" を選ぶと手動設定を外し、道の位置から決め直す（決まらなければ今の丁目のまま）。
    */
@@ -703,7 +568,6 @@ export function useMapEditOperations(params: Params) {
     setSlotChome,
     setSlotAddress,
     deleteSlot,
-    applySlotPlan,
     applyStoreImport,
     patchRoad,
     deleteRoad,
