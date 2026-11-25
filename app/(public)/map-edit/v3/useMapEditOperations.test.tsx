@@ -249,3 +249,32 @@ describe("useMapEditOperations.setSlotChome", () => {
     expect(hook.result.current.shops[0]).toMatchObject({ chome: "二丁目", chomeLocked: false });
   });
 });
+
+describe("useMapEditOperations.addPlaceSlot", () => {
+  it("道の上に、空いている店番で名前付きの出店場所を1つ追加し、取り消せる", () => {
+    const { hook } = setup([slot(1, 5, { chome: "一丁目" })]);
+    act(() => {
+      expect(hook.result.current.ops.addPlaceSlot(road, "  広場前  ")).toBe(true);
+    });
+    const added = hook.result.current.shops.find((s) => s.placeName === "広場前");
+    expect(added).toMatchObject({ roadId: road.id, roadSide: "left", position: 2, placeName: "広場前" });
+    act(() => hook.result.current.ops.undo());
+    expect(hook.result.current.shops.some((s) => s.placeName)).toBe(false);
+  });
+
+  it("全角・空白の違いでも同じ名前は重ねて作らない", () => {
+    const { hook, setMessage } = setup([slot(1, 5, { placeName: "広場前" })]);
+    act(() => {
+      expect(hook.result.current.ops.addPlaceSlot(road, "広 場 前")).toBe(false);
+    });
+    expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("同じ名前"));
+  });
+
+  it("空の名前では作らない", () => {
+    const { hook } = setup([]);
+    act(() => {
+      expect(hook.result.current.ops.addPlaceSlot(road, "   ")).toBe(false);
+    });
+    expect(hook.result.current.shops).toHaveLength(0);
+  });
+});

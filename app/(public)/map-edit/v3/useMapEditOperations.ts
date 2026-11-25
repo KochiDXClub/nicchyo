@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
 import type { MapRouteConfig, MapRoutePoint } from "../../map/types/mapRoute";
-import { roadIdOfSlot } from "@/lib/map/roadSlotPosition";
+import { roadIdOfSlot, roadLengthMeters, roadSlotLatLng, type RoadSide } from "@/lib/map/roadSlotPosition";
+import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import {
   recordOperation,
   redoOperation,
@@ -317,6 +318,59 @@ export function useMapEditOperations(params: Params) {
   );
 
   /**
+   * 道の上に、名前付きの出店場所（空きの区画）を1つ追加する。道の真ん中・左側に置き、
+   * 店番は空いている番号を使う。名前は市の中で重複させない（DB の一意インデックスとも揃える）。
+   */
+  const addPlaceSlot = useCallback(
+    (road: EditableRoad, rawName: string): boolean => {
+      const placeName = rawName.trim();
+      if (!placeName || placeName.length > 100) {
+        setMessage("出店場所の名前は1〜100文字で入力してください。");
+        return false;
+      }
+      const key = (value: string) => value.normalize("NFKC").replace(/[\s\u3000]+/g, "").toLowerCase();
+      if (shops.some((s) => s.placeName && key(s.placeName) === key(placeName))) {
+        setMessage("同じ名前の出店場所がすでにあります。");
+        return false;
+      }
+      if (road.points.length < 2) {
+        setMessage("道の点が足りないため、出店場所を置けません。");
+        return false;
+      }
+      const used = new Set(shops.map((s) => s.position));
+      let position: number | undefined;
+      for (let n = MIN_SHOP_ID; n <= MAX_SHOP_ID; n += 1) {
+        if (!used.has(n)) {
+          position = n;
+          break;
+        }
+      }
+      if (position === undefined) {
+        setMessage(`空いている店番（${MIN_SHOP_ID}〜${MAX_SHOP_ID}）がないため、出店場所を追加できません。`);
+        return false;
+      }
+      const side: RoadSide = "left";
+      const distanceM = roadLengthMeters(road.points) / 2;
+      const latLng = roadSlotLatLng(road.points, { distanceM, side, offsetM: 0 });
+      const created: EditableShop = {
+        locationId: `new-${Date.now()}-place`,
+        id: position,
+        position,
+        name: vacantShopName(position),
+        placeName,
+        roadId: road.id,
+        roadDistanceM: distanceM,
+        roadSide: side,
+        roadOffsetM: 0,
+        ...latLng,
+      };
+      commit({ shops: [...shops, created] }, "道", `${road.name} に出店場所「${placeName}」を追加`);
+      return true;
+    },
+    [shops, commit, setMessage]
+  );
+
+  /**
    * 区画の丁目を直す。丁目を選ぶと「手で設定」になり、自動判定で上書きしない。
    * "auto" を選ぶと手動設定を外し、道の位置から決め直す（決まらなければ今の丁目のまま）。
    */
@@ -567,6 +621,7 @@ export function useMapEditOperations(params: Params) {
     clearVendor,
     setSlotChome,
     setSlotAddress,
+    addPlaceSlot,
     deleteSlot,
     applyStoreImport,
     patchRoad,
