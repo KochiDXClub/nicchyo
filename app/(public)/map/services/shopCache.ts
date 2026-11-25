@@ -244,10 +244,6 @@ export async function fetchPublicShopData(locale: Locale = DEFAULT_LOCALE, mapSe
       assignments: publicAssignmentsForDate(scheduleWithDay, date, baseRows.assignments, visible).filter((row) => row.vendor_id !== null && (statuses.get(row.vendor_id) === "scheduled" || (!managed.has(row.vendor_id) && row.market_date === date))),
     };
   }
-  // 公開切替の前も、店の ID は店舗 ID（public_shop_id）で振る。付けないと stableIds で全店が地図から消える
-  if (!scheduleEnabled) {
-    baseRows = { ...baseRows, vendors: withPublicShopIds(baseRows.vendors, await readPublicShopIds(supabase)) };
-  }
   const categories = await fetchCategories().catch(() => []);
   // 店の ID は常に店舗 ID（1000以上）を使う。場所の番号（旧番号）を店の ID にしない
   const positioned = buildVendorShops(baseRows, activeContents, { stableIds: true }).map((shop) => withCategory(shop, categories));
