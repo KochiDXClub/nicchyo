@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatShopIdToCode, normalizeShopCodeToId } from "./route";
+import { formatShopCodeForPage, formatShopIdToCode, normalizeShopCodeToId } from "./route";
 
 describe("normalizeShopCodeToId", () => {
   it("3桁コードを数値IDに変換する", () => {
@@ -31,5 +31,18 @@ describe("formatShopIdToCode", () => {
     expect(formatShopIdToCode(999)).toBeNull();
     expect(formatShopIdToCode(0)).toBeNull();
     expect(formatShopIdToCode(1.2)).toBeNull();
+  });
+});
+
+describe("formatShopCodeForPage", () => {
+  it("旧番号は3桁、店舗 ID はそのまま文字列にする（店舗ページの URL 解決用）", () => {
+    expect(formatShopCodeForPage(1)).toBe("001");
+    expect(formatShopCodeForPage(999)).toBe("999");
+    expect(formatShopCodeForPage(1000)).toBe("1000");
+  });
+
+  it("範囲外や整数以外は null を返す", () => {
+    expect(formatShopCodeForPage(0)).toBeNull();
+    expect(formatShopCodeForPage(1.5)).toBeNull();
   });
 });
