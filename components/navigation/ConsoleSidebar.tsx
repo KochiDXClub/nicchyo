@@ -15,11 +15,14 @@
 
 import React, { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
-import { Menu, PanelLeftClose, X, type LucideIcon } from "lucide-react";
-import { NicchyoLogoLink } from "./NicchyoLogoLink";
+import { Home, Menu, PanelLeftClose, X, type LucideIcon } from "lucide-react";
+import { NicchyoLogo, NicchyoLogoLink } from "./NicchyoLogoLink";
 
 /** サイドバーのぶん、本文を右へ寄せる余白。サイドバーの幅（w-[248px]）と揃える */
 export const CONSOLE_SIDEBAR_OFFSET_CLASS = "lg:pl-[248px]";
+
+/** アイコンだけのレール（collapsible）のときの余白。レールの幅（w-14）と揃える。展開時は本文の上に重ねる */
+export const CONSOLE_SIDEBAR_RAIL_OFFSET_CLASS = "lg:pl-14";
 
 /** 呼び出し側の色。サイドバーは面で色を塗らないので、線と文字だけの控えめな指定にする */
 export type ConsoleSidebarAccent = {
@@ -71,12 +74,34 @@ const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffec
 const FOOTER_ACTION_CLASS =
   "flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line text-[12px] font-medium text-nicchyo-ink/70 transition hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink";
 
+/**
+ * collapsible（PC のアイコンだけのレール）のときの見た目。
+ * 外枠の group/rail に乗せ、カーソルを重ねた時（またはキーボードでフォーカスした時）だけ文字を出す。
+ * 文字は隠すだけで DOM には残すので、読み上げと title はそのまま働く。
+ * 展開は本文の上に重なる（本文の余白はレールの幅のまま動かない）。
+ */
+const RAIL = {
+  aside: "lg:w-14 lg:hover:w-[248px] lg:focus-within:w-[248px] lg:hover:shadow-float lg:focus-within:shadow-float",
+  header: "lg:px-2 lg:group-hover/rail:px-4 lg:group-focus-within/rail:px-4",
+  nav: "lg:px-2 lg:group-hover/rail:px-3 lg:group-focus-within/rail:px-3",
+  groupLabel: "lg:sr-only lg:group-hover/rail:not-sr-only lg:group-focus-within/rail:not-sr-only",
+  itemLabel: "lg:sr-only lg:group-hover/rail:not-sr-only lg:group-focus-within/rail:not-sr-only",
+  itemTrailing:
+    "lg:absolute lg:left-[18px] lg:top-0.5 lg:ml-0 lg:group-hover/rail:static lg:group-hover/rail:ml-auto lg:group-focus-within/rail:static lg:group-focus-within/rail:ml-auto",
+  footer: "lg:p-2 lg:group-hover/rail:p-3 lg:group-focus-within/rail:p-3",
+  userRow: "lg:justify-center lg:px-0 lg:group-hover/rail:justify-start lg:group-hover/rail:px-2 lg:group-focus-within/rail:justify-start lg:group-focus-within/rail:px-2",
+  userText: "lg:sr-only lg:group-hover/rail:not-sr-only lg:group-focus-within/rail:not-sr-only",
+  actions: "lg:grid-cols-1 lg:group-hover/rail:grid-cols-2 lg:group-focus-within/rail:grid-cols-2",
+  actionText: "lg:sr-only lg:group-hover/rail:not-sr-only lg:group-focus-within/rail:not-sr-only",
+} as const;
+
 export const ConsoleSidebar = React.memo(function ConsoleSidebar({
   isOpen,
   onToggle,
   onClose,
   menuLabel,
   showMobileToggle = true,
+  collapsible = false,
   homeHref,
   homeLabel,
   subtitle,
@@ -93,6 +118,11 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
   menuLabel: string;
   /** スマホで左上に開閉ボタンを出すか。下部バーで代わりの導線を出す画面では false */
   showMobileToggle?: boolean;
+  /**
+   * PC ではアイコンだけのレールにし、カーソル（フォーカス）を重ねた時だけ項目名を広げる（Supabase 風）。
+   * 本文の余白は CONSOLE_SIDEBAR_RAIL_OFFSET_CLASS にそろえる。出店者・市の画面は従来どおり（false）
+   */
+  collapsible?: boolean;
   /** ロゴから戻る、この画面のホーム */
   homeHref: string;
   homeLabel: string;
@@ -148,14 +178,36 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-[9999] flex w-[248px] flex-col border-r border-line bg-white motion-safe:transition-[transform,visibility] motion-safe:duration-200 ease-out lg:translate-x-0 ${
+        className={`group/rail fixed inset-y-0 left-0 z-[9999] flex ${
+          collapsible ? RAIL.aside : "w-[248px]"
+        } flex-col border-r border-line bg-white motion-safe:transition-[transform,visibility,width,box-shadow] motion-safe:duration-200 ease-out lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "invisible -translate-x-full lg:visible"
         }`}
       >
         {/* ヘッダー */}
-        <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line px-4">
-          <NicchyoLogoLink href={homeHref} label={homeLabel} onClick={onClose} />
-          <span className="min-w-0 flex-1 truncate text-xs text-nicchyo-ink/70">{subtitle}</span>
+        <div className={`flex h-14 shrink-0 items-center gap-2.5 border-b border-line px-4 ${collapsible ? RAIL.header : ""}`}>
+          {collapsible ? (
+            // レールでは1つのリンクにまとめる（ホームのアイコン⇄ロゴを、展開に合わせて切り替える）
+            <Link
+              href={homeHref}
+              aria-label={homeLabel}
+              title={homeLabel}
+              onClick={onClose}
+              className="inline-flex min-h-11 shrink-0 items-center rounded-lg text-nicchyo-ink/70 transition hover:text-nicchyo-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-nicchyo-primary lg:w-10 lg:justify-center lg:group-hover/rail:w-auto lg:group-hover/rail:justify-start lg:group-focus-within/rail:w-auto lg:group-focus-within/rail:justify-start"
+            >
+              <Home className="hidden h-[18px] w-[18px] lg:block lg:group-hover/rail:hidden lg:group-focus-within/rail:hidden" aria-hidden="true" />
+              <span className="inline-flex lg:hidden lg:group-hover/rail:inline-flex lg:group-focus-within/rail:inline-flex">
+                <NicchyoLogo alt="" />
+              </span>
+            </Link>
+          ) : (
+            <NicchyoLogoLink href={homeHref} label={homeLabel} onClick={onClose} />
+          )}
+          <span
+            className={`min-w-0 flex-1 truncate text-xs text-nicchyo-ink/70 ${collapsible ? RAIL.itemLabel : ""}`}
+          >
+            {subtitle}
+          </span>
           {showMobileToggle ? (
             <span className="w-10 shrink-0 lg:hidden" aria-hidden />
           ) : (
@@ -175,10 +227,14 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
           ref={navRef}
           aria-label={menuLabel}
           onScroll={(e) => navScrollTopByMenu.set(menuLabel, e.currentTarget.scrollTop)}
-          className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+          className={`flex-1 space-y-5 overflow-y-auto px-3 py-4 ${collapsible ? RAIL.nav : ""}`}>
           {groups.map((group) => (
             <div key={group.id}>
-              <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-nicchyo-ink/55">
+              <p
+                className={`px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-nicchyo-ink/55 ${
+                  collapsible ? RAIL.groupLabel : ""
+                }`}
+              >
                 {group.label}
               </p>
               <ul className="space-y-0.5">
@@ -191,7 +247,9 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
                         onClick={onClose}
                         title={item.description}
                         aria-current={item.isActive ? "page" : undefined}
-                        className={`group relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors ${
+                        className={`group relative flex h-9 items-center gap-2.5 rounded-lg ${
+                          collapsible ? "px-2" : "px-2.5"
+                        } text-[13px] font-medium transition-colors ${
                           item.isActive
                             ? "bg-nicchyo-ink/5 text-nicchyo-ink"
                             : "text-nicchyo-ink/70 hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink"
@@ -209,8 +267,11 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
                           }`}
                           aria-hidden="true"
                         />
-                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                        {item.trailing != null && <span className="ml-auto">{item.trailing}</span>}
+                        <span className={`min-w-0 flex-1 truncate ${collapsible ? RAIL.itemLabel : ""}`}>{item.label}</span>
+                        {item.trailing != null && (
+                          // レールでは未対応の件数をアイコンの右上に小さく出す（展開したら項目の右端へ戻す）
+                          <span className={`ml-auto ${collapsible ? RAIL.itemTrailing : ""}`}>{item.trailing}</span>
+                        )}
                       </Link>
                     </li>
                   );
@@ -221,12 +282,12 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
         </nav>
 
         {/* フッター：ユーザー情報と操作 */}
-        <div className="shrink-0 border-t border-line p-3">
-          <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
+        <div className={`shrink-0 border-t border-line p-3 ${collapsible ? RAIL.footer : ""}`}>
+          <div className={`flex items-center gap-2.5 rounded-lg px-2 py-2 ${collapsible ? RAIL.userRow : ""}`}>
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-nicchyo-ink/5 text-[13px] font-semibold uppercase text-nicchyo-ink/70">
               {initial}
             </span>
-            <span className="min-w-0 flex-1 leading-tight">
+            <span className={`min-w-0 flex-1 leading-tight ${collapsible ? RAIL.userText : ""}`}>
               <span className="block truncate text-[13px] font-medium text-nicchyo-ink">{userName}</span>
               <span className="flex items-center gap-1.5 text-[11px] text-nicchyo-ink/55">
                 <span className={`h-1.5 w-1.5 rounded-full ${accent.dot}`} aria-hidden="true" />
@@ -234,12 +295,12 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
               </span>
             </span>
           </div>
-          <div className="mt-1 grid grid-cols-2 gap-1.5">
+          <div className={`mt-1 grid grid-cols-2 gap-1.5 ${collapsible ? RAIL.actions : ""}`}>
             {actions.map(({ label, icon: ActionIcon, href, onClick }) => {
               const content = (
                 <>
                   <ActionIcon className="h-[14px] w-[14px]" aria-hidden="true" />
-                  {label}
+                  <span className={collapsible ? RAIL.actionText : undefined}>{label}</span>
                 </>
               );
               return href ? (

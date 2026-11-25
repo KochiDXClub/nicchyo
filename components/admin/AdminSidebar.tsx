@@ -71,6 +71,8 @@ export const AdminSidebar = React.memo(function AdminSidebar({
       onToggle={onToggle}
       onClose={onClose}
       menuLabel="管理メニュー"
+      // PC ではアイコンだけのレールにし、カーソルを重ねた時だけ項目名を出す（Supabase 風）
+      collapsible
       homeHref="/admin/dashboard"
       homeLabel="nicchyo 管理ダッシュボードへ"
       subtitle="管理コンソール"

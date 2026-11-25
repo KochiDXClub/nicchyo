@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AdminSidebar } from "./AdminSidebar";
-import { CONSOLE_SIDEBAR_OFFSET_CLASS } from "@/components/navigation/ConsoleSidebar";
+import { CONSOLE_SIDEBAR_RAIL_OFFSET_CLASS } from "@/components/navigation/ConsoleSidebar";
 import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 
 interface AdminLayoutProps {
@@ -31,7 +31,7 @@ export const AdminLayout = React.memo(function AdminLayout({
   useBodyScrollLock(isSidebarOpen);
 
   return (
-    <div className={`min-h-screen bg-nicchyo-base ${CONSOLE_SIDEBAR_OFFSET_CLASS}`}>
+    <div className={`min-h-screen bg-nicchyo-base ${CONSOLE_SIDEBAR_RAIL_OFFSET_CLASS}`}>
       <AdminSidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen((v) => !v)}
