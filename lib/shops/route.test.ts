@@ -7,7 +7,7 @@ describe("normalizeShopCodeToId", () => {
     expect(normalizeShopCodeToId("001")).toBe(1);
     expect(normalizeShopCodeToId("010")).toBe(10);
     expect(normalizeShopCodeToId("300")).toBe(300);
-    // マップ編集の区画分けで区画を増やせるよう、上限は 999（3桁で表せる最大）
+    // マップ編集で区画を増やせるよう、上限は 999（3桁で表せる最大）
     expect(normalizeShopCodeToId("301")).toBe(301);
     expect(normalizeShopCodeToId("999")).toBe(999);
   });

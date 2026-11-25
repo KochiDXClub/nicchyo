@@ -5,13 +5,12 @@ import "./mapEditor.css";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { useUnsavedChangesWarning } from "@/lib/hooks/useUnsavedChangesWarning";
 import { distanceMeters, getRouteCenter } from "../../map/utils/mapRouteGeometry";
-import { resolveSlotPositions, roadLengthMeters, roadSlotLatLng } from "@/lib/map/roadSlotPosition";
+import { resolveSlotPositions } from "@/lib/map/roadSlotPosition";
 import type { MapRoutePoint, RoadKind } from "../../map/types/mapRoute";
 import { EMPTY_HISTORY, focusOfOperation, netChanges, type EditHistory, type EditOperation } from "./editHistory";
 import { ROAD_KIND_DEFAULT_WIDTH, ROAD_KIND_LABELS, type CanvasHandlers, type EditableShop, type Selection, type Tool } from "./types";
 import { useMapEditData } from "./useMapEditData";
-import { newSlotOffsetM, useMapEditOperations } from "./useMapEditOperations";
-import { initialSplitSettings, planRoadSlots, type SlotOnRoad, type SlotSplitSettings } from "./slotSplitPlan";
+import { useMapEditOperations } from "./useMapEditOperations";
 import { useLaneKeyboardNavigation } from "./useLaneKeyboardNavigation";
 import MapEditCanvasMapLibre from "./components/MapEditCanvasMapLibre";
 import { MapEditHeader } from "./components/MapEditHeader";
@@ -23,7 +22,6 @@ import PendingChangeLog from "./components/PendingChangeLog";
 import RoadLaneView, { buildLaneRoadGroups, type LaneRoadGroup } from "./components/RoadLaneView";
 import ToolPalette from "./components/ToolPalette";
 import ToolHint from "./components/ToolHint";
-import SlotSplitPanel from "./components/SlotSplitPanel";
 import SlotMigrationPanel from "./components/SlotMigrationPanel";
 
 const MAX_ZOOM_IDX = 2;
@@ -33,24 +31,11 @@ const POINT_SNAP_DISTANCE_METERS = 6;
 // 直前の点とほぼ同じ場所のクリックは点を増やさない（ダブルクリックの2回目のクリックなど）
 const DUPLICATE_POINT_METERS = 0.5;
 
-/** 道基準の位置を持ち、指定の道に乗っている区画（区画分けツールの対象） */
-function slotsOnRoad(shops: EditableShop[], roadId: string): SlotOnRoad[] {
-  return shops.flatMap((s) =>
-    s.roadId === roadId && s.roadSide && s.roadDistanceM != null
-      ? [{ locationId: s.locationId, side: s.roadSide, distanceM: s.roadDistanceM, hasVendor: !!s.vendorId || !!s.placeName }]
-      : []
-  );
-}
-
 export default function MapEditClientV3() {
   const [tool, setTool] = useState<Tool>("select");
   const [selection, setSelection] = useState<Selection | null>(null);
   const [draft, setDraft] = useState<{ lat: number; lng: number }[]>([]);
   const [drawAxis, setDrawAxis] = useState<"h" | "v" | "free">("free");
-  // 区画分けツールで選んだ道と、その設定
-  const [splitRoadId, setSplitRoadId] = useState<string | null>(null);
-  const [splitSettings, setSplitSettings] = useState<SlotSplitSettings | null>(null);
-
   const [sheetOpen, setSheetOpen] = useState(false);
   const [laneOpen, setLaneOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -142,56 +127,6 @@ export default function MapEditClientV3() {
 
   const unanchoredCount = useMemo(() => shops.filter((s) => !s.roadId).length, [shops]);
 
-  // ── 区画分け ──────────────────────────────
-  const splitRoad = useMemo(() => roads.find((r) => r.id === splitRoadId) ?? null, [roads, splitRoadId]);
-  const splitRoadLengthM = useMemo(() => (splitRoad ? roadLengthMeters(splitRoad.points) : 0), [splitRoad]);
-  const slotsOnSplitRoad: SlotOnRoad[] = useMemo(() => (splitRoad ? slotsOnRoad(shops, splitRoad.id) : []), [shops, splitRoad]);
-  const splitPlan = useMemo(
-    () => (splitRoad && splitSettings ? planRoadSlots(splitRoadLengthM, splitSettings, slotsOnSplitRoad) : null),
-    [splitRoad, splitSettings, splitRoadLengthM, slotsOnSplitRoad]
-  );
-  const previewSlots = useMemo(() => {
-    if (!splitRoad || !splitPlan || splitPlan.error) return [];
-    const deleted = new Set(splitPlan.deletes.map((d) => d.locationId));
-    const onRoad = shops.filter((s) => s.roadId === splitRoad.id && !deleted.has(s.locationId));
-    const shopById = new Map(displayShops.map((s) => [s.locationId, s]));
-    return [
-      ...splitPlan.creates.map((c) => ({
-        ...roadSlotLatLng(splitRoad.points, { distanceM: c.distanceM, side: c.side, offsetM: newSlotOffsetM(onRoad, c.side) }),
-        status: "create" as const,
-      })),
-      ...splitPlan.moves.map((m) => ({
-        ...roadSlotLatLng(splitRoad.points, {
-          distanceM: m.toM,
-          side: m.side,
-          offsetM: shopById.get(m.locationId)?.roadOffsetM ?? 0,
-        }),
-        status: "move" as const,
-      })),
-      ...splitPlan.deletes.flatMap((d) => {
-        const shop = shopById.get(d.locationId);
-        return shop ? [{ lat: shop.lat, lng: shop.lng, status: "delete" as const }] : [];
-      }),
-    ];
-  }, [splitRoad, splitPlan, shops, displayShops]);
-
-  const startSplit = useCallback(
-    (roadId: string) => {
-      const road = roads.find((r) => r.id === roadId);
-      if (!road) return;
-      if (road.kind !== "market") {
-        setMessage("区画分けは「出店可の通り」でだけ使えます。");
-        return;
-      }
-      setTool("splitSlots");
-      setSplitRoadId(road.id);
-      setSplitSettings(initialSplitSettings(roadLengthMeters(road.points), slotsOnRoad(shops, road.id)));
-      setSheetOpen(true);
-      setSelection({ kind: "road", id: road.id });
-    },
-    [roads, shops, setMessage]
-  );
-
   const focusOn = useCallback(
     (point: { lat: number; lng: number }) => setFocus(projection.toLocal(point.lat, point.lng)),
     [projection]
@@ -202,15 +137,11 @@ export default function MapEditClientV3() {
   const backToSelect = useCallback(() => {
     setTool("select");
     setDraft([]);
-    setSplitRoadId(null);
-    setSplitSettings(null);
   }, []);
 
   const changeTool = useCallback(
     (next: Tool) => {
       setDraft([]);
-      setSplitRoadId(null);
-      setSplitSettings(null);
       setTool(next);
       // 描いている道の頂点ハンドルと接続先の点が重なって紛らわしくならないよう、
       // 選択ツール以外に切り替えるときは道の選択を外す
@@ -241,15 +172,11 @@ export default function MapEditClientV3() {
 
   const selectRoad = useCallback(
     (roadId: string) => {
-      if (tool === "splitSlots") {
-        startSplit(roadId);
-        return;
-      }
       setSelection({ kind: "road", id: roadId });
         setIsHistoryOpen(false);
       setSheetOpen(true);
     },
-    [tool, startSplit, setIsHistoryOpen]
+    [setIsHistoryOpen]
   );
 
   // 道の一覧で名前をタップした時は、選択に加えて地図側もその道の位置へ移動する
@@ -417,11 +344,7 @@ export default function MapEditClientV3() {
   const toolHintMessage =
     tool === "drawRoad"
         ? "クリックで点を追加、ダブルクリックかEnterで確定、Escで中断（既存の道の点の近くをクリックすると、その点に合わせます）"
-        : tool === "splitSlots"
-          ? splitRoad
-            ? "右のパネルで区画数や範囲を決めて「適用」。Escで中断"
-            : "区画を割り振る「出店可の通り」をクリック。Escで中断"
-          : tool === "placeLandmark"
+        : tool === "placeLandmark"
             ? "建物を置く場所をクリック。Escで中断"
             : null;
 
@@ -474,7 +397,6 @@ export default function MapEditClientV3() {
               roads={roads}
               landmarks={landmarks}
               draft={draft}
-              previewSlots={previewSlots}
               search={search}
               zoomIdx={zoomIdx}
               setZoomIdx={setZoomIdx}
@@ -547,24 +469,6 @@ export default function MapEditClientV3() {
             />
           ) : (
             <>
-              {splitRoad && splitSettings && splitPlan && (
-                <SlotSplitPanel
-                  road={splitRoad}
-                  roadLengthM={splitRoadLengthM}
-                  settings={splitSettings}
-                  onChange={setSplitSettings}
-                  plan={splitPlan}
-                  unanchoredCount={shops.filter((s) => !s.roadId && ops.roadIdOf(s) === splitRoad.id).length}
-                  onApply={() => {
-                    if (ops.applySlotPlan(splitRoad, splitPlan)) {
-                      const roadId = splitRoad.id;
-                      backToSelect();
-                      setSelection({ kind: "road", id: roadId });
-                    }
-                  }}
-                  onCancel={backToSelect}
-                />
-              )}
               {!selection && unanchoredCount > 0 && data.schemaReady && (
                 <SlotMigrationPanel
                   unanchoredCount={unanchoredCount}
@@ -574,7 +478,7 @@ export default function MapEditClientV3() {
                   }}
                 />
               )}
-              {!splitRoad && (!selection || selection.kind === "road") && (
+              {(!selection || selection.kind === "road") && (
                 <RoadListPanel
                   roads={roads}
                   selectedRoadId={selectedRoad?.id ?? null}
@@ -607,7 +511,7 @@ export default function MapEditClientV3() {
                   }}
                 />
               )}
-              {selectedRoad && !splitRoad && (
+              {selectedRoad && (
                 <RoadDetailPanel
                   road={selectedRoad}
                   markets={data.markets}
@@ -631,7 +535,6 @@ export default function MapEditClientV3() {
                   onDelete={() => {
                     if (ops.deleteRoad(selectedRoad.id)) setSelection(null);
                   }}
-                  onStartSplit={() => startSplit(selectedRoad.id)}
                   shopCountOnRoad={ops.shopCountOnRoad}
                 />
               )}

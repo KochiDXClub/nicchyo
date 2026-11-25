@@ -3,8 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import { useState } from "react";
 import { DEFAULT_MAP_ROUTE_CONFIG } from "../../map/types/mapRoute";
 import { EMPTY_HISTORY, type EditHistory } from "./editHistory";
-import { planRoadSlots } from "./slotSplitPlan";
-import { DEFAULT_SLOT_OFFSET_M, useMapEditOperations } from "./useMapEditOperations";
+import { useMapEditOperations } from "./useMapEditOperations";
 import type { EditableLandmark, EditableRoad, EditableShop, EditableVendor } from "./types";
 
 const road: EditableRoad = {
@@ -33,7 +32,11 @@ const slot = (position: number, distanceM: number, extra: Partial<EditableShop> 
   ...extra,
 });
 
-function setup(initialShops: EditableShop[], maxUnassigned = 300, initialVendors: EditableVendor[] = []) {
+function setup(
+  initialShops: EditableShop[],
+  maxUnassigned = 300,
+  initialVendors: EditableVendor[] = [],
+) {
   const setMessage = vi.fn();
   const hook = renderHook(() => {
     const [history, setHistory] = useState<EditHistory>(EMPTY_HISTORY);
@@ -61,7 +64,6 @@ function setup(initialShops: EditableShop[], maxUnassigned = 300, initialVendors
   return { hook, setMessage };
 }
 
-const settings = { mode: "count" as const, count: 3, intervalM: 10, sides: "left" as const, startM: 0, endM: 30 };
 
 describe("住所番号", () => {
   it("枝番付き住所を別の場所として設定し、取り消せる", () => {
@@ -103,55 +105,6 @@ describe("場所に登録済みの店舗", () => {
     expect(hook.result.current.shops[1].vendorId).toBeUndefined();
     expect(hook.result.current.history.past).toHaveLength(0);
     expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("現場登録"));
-  });
-});
-
-describe("useMapEditOperations.applySlotPlan", () => {
-  it("足りない区画を空いている店番で作り、同じ道の区画に合わせた位置・丁目にする", () => {
-    const existing = [slot(1, 5), slot(3, 15, { roadOffsetM: 10 })];
-    const { hook } = setup(existing);
-    const plan = planRoadSlots(250, settings, [
-      { locationId: "loc-1", side: "left", distanceM: 5, hasVendor: false },
-      { locationId: "loc-3", side: "left", distanceM: 15, hasVendor: false },
-    ]);
-    act(() => {
-      expect(hook.result.current.ops.applySlotPlan(road, plan)).toBe(true);
-    });
-    const created = hook.result.current.shops.filter((s) => s.locationId.startsWith("new-"));
-    expect(created).toHaveLength(1);
-    expect(created[0]).toMatchObject({ position: 2, roadId: "r1", roadSide: "left", roadDistanceM: 25, roadOffsetM: 9, chome: "一丁目" });
-    expect(created[0].lat).toBeGreaterThan(33.56141);
-    expect(hook.result.current.history.past).toHaveLength(1);
-  });
-
-  it("区画分けで名前付きの出店場所を削除しない", () => {
-    const { hook, setMessage } = setup([slot(1, 5, { placeName: "一丁目 南 2" })]);
-    const plan = { moves: [], keeps: [], creates: [], deletes: [{ locationId: "loc-1", side: "left" as const, distanceM: 5 }], error: null };
-    act(() => { expect(hook.result.current.ops.applySlotPlan(road, plan)).toBe(false); });
-    expect(hook.result.current.shops).toHaveLength(1);
-    expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("出店場所"));
-  });
-
-  it("取り消すと区画分けの前に戻る", () => {
-    const { hook } = setup([]);
-    const plan = planRoadSlots(250, settings, []);
-    act(() => {
-      hook.result.current.ops.applySlotPlan(road, plan);
-    });
-    expect(hook.result.current.shops).toHaveLength(3);
-    expect(hook.result.current.shops[0].roadOffsetM).toBe(DEFAULT_SLOT_OFFSET_M);
-    act(() => hook.result.current.ops.undo());
-    expect(hook.result.current.shops).toHaveLength(0);
-  });
-
-  it("空き区画の上限を超えるときは当てはめずに知らせる", () => {
-    const { hook, setMessage } = setup([], 2);
-    const plan = planRoadSlots(250, settings, []);
-    act(() => {
-      expect(hook.result.current.ops.applySlotPlan(road, plan)).toBe(false);
-    });
-    expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("上限（2 件）"));
-    expect(hook.result.current.shops).toHaveLength(0);
   });
 });
 
@@ -266,16 +219,6 @@ describe("useMapEditOperations の出店者操作", () => {
     act(() => hook.result.current.ops.clearVendor("loc-1"));
     expect(hook.result.current.shops[0].vendorId).toBeUndefined();
     expect(hook.result.current.vendors).toHaveLength(1);
-  });
-});
-
-describe("区画を増やすときの丁目", () => {
-  it("同じ道でいちばん近い区画の丁目に合わせる（丁目は区画ごとに手で設定する）", () => {
-    const { hook } = setup([slot(1, 5, { chome: "二丁目" })]);
-    act(() => {
-      hook.result.current.ops.applySlotPlan(road, planRoadSlots(250, settings, [{ locationId: "loc-1", side: "left", distanceM: 5, hasVendor: false }]));
-    });
-    expect(hook.result.current.shops.filter((s) => s.locationId.startsWith("new-")).every((s) => s.chome === "二丁目")).toBe(true);
   });
 });
 
