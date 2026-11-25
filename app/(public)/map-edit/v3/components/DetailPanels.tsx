@@ -54,7 +54,6 @@ export function RoadDetailPanel({
   onWiderClick,
   onNarrowerClick,
   onDelete,
-  onStartSplit,
   shopCountOnRoad,
 }: {
   road: EditableRoad;
@@ -65,8 +64,6 @@ export function RoadDetailPanel({
   onWiderClick: () => void;
   onNarrowerClick: () => void;
   onDelete: () => void;
-  /** 区画分けツールをこの道で始める */
-  onStartSplit: () => void;
   shopCountOnRoad: (roadId: string) => number;
 }) {
   return (
@@ -123,16 +120,6 @@ export function RoadDetailPanel({
         </span>
       </div>
 
-      {road.kind === "market" && (
-        <>
-          <span style={label}>区画（現在 {shopCountOnRoad(road.id)} 区画）</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" onClick={onStartSplit} style={buttonStyle}>
-              区画分け…
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 }

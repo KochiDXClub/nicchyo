@@ -21,15 +21,10 @@ export const EDITOR_COLORS = {
   /**
    * 地図上の区画: 空き（赤）と出店者あり（ピン）。
    * 出店者を割り当て忘れた区画を地図の上でひと目で探せるよう、空きは目立つ赤にする。
-   * 区画分けで「消す」プレビューの赤（previewDelete）とは別の、赤紫寄りの色にして混ざらないようにする
    */
   vacantSlot: "#E11D48",
   vacantSlotStroke: "#9F1239",
   /** 日曜市の区画の色（市のマーカー色の日曜市の値と同じ。定義は lib/market/markerColor.ts） */
   occupiedSlot: SUNDAY_MARKET_MARKER_COLOR,
   selectedSlot: "#B45309",
-  /** 区画分けのプレビュー: 新しく作る区画・動く区画・消す区画 */
-  previewCreate: "#16A34A",
-  previewMove: "#D97706",
-  previewDelete: "#DC2626",
 } as const;
