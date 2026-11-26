@@ -85,6 +85,8 @@ const LAYER_ROAD_UNSAVED = "nicchyo-edit-road-unsaved-layer";
 const LAYER_DRAFT = "nicchyo-edit-draft-layer";
 const LAYER_DRAFT_POINTS = "nicchyo-edit-draft-points-layer";
 const LAYER_DRAFT_CURSOR = "nicchyo-edit-draft-cursor-layer";
+// 店舗を置く道具で、カーソルに追従して見せる出店場所の丸（置く前の目安）
+const LAYER_DRAFT_CURSOR_POINT = "nicchyo-edit-draft-cursor-point-layer";
 const LAYER_SHOP_DOTS = "nicchyo-edit-shop-dots-layer";
 const LAYER_SHOP_NUMBERS = "nicchyo-edit-shop-numbers-layer";
 const LAYER_VENDOR_DRAG = "nicchyo-edit-vendor-drag-layer";
@@ -523,6 +525,20 @@ export default function MapEditCanvasMapLibre({
         paint: { "line-color": EDITOR_COLORS.accent, "line-width": 2, "line-opacity": 0.6, "line-dasharray": [1, 1.5] },
       });
       map.addLayer({
+        id: LAYER_DRAFT_CURSOR_POINT,
+        type: "circle",
+        source: SRC_DRAFT_CURSOR,
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": 8,
+          "circle-color": EDITOR_COLORS.surface,
+          "circle-opacity": 0.6,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": EDITOR_COLORS.accent,
+          "circle-stroke-opacity": 0.6,
+        },
+      });
+      map.addLayer({
         id: LAYER_DRAFT_POINTS,
         type: "circle",
         source: SRC_DRAFT,
@@ -713,6 +729,13 @@ export default function MapEditCanvasMapLibre({
         const last = draftRef.current[draftRef.current.length - 1];
         const source = map.getSource(SRC_DRAFT_CURSOR) as maplibregl.GeoJSONSource | undefined;
         if (!source) return;
+        if (toolRef.current === "placeShop") {
+          source.setData({
+            type: "FeatureCollection",
+            features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [e.lngLat.lng, e.lngLat.lat] } }],
+          });
+          return;
+        }
         source.setData(
           toolRef.current === "drawRoad" && last
             ? {
@@ -1011,7 +1034,9 @@ export default function MapEditCanvasMapLibre({
     if (!map || !ready) return;
     if (tool === "drawRoad") map.doubleClickZoom.disable();
     else map.doubleClickZoom.enable();
-    map.getCanvas().style.cursor = tool === "drawRoad" || tool === "placeLandmark" ? "crosshair" : "";
+    map.getCanvas().style.cursor = tool === "drawRoad" || tool === "placeLandmark" || tool === "placeShop" ? "crosshair" : "";
+    // 店舗を置く道具を抜けたら、カーソルに追従していた丸を消す
+    if (tool !== "placeShop") (map.getSource(SRC_DRAFT_CURSOR) as maplibregl.GeoJSONSource | undefined)?.setData(emptyFC());
   }, [tool, ready]);
 
   // 頂点の右クリックメニューは、Esc か選んでいる道・道具が変わったら閉じる

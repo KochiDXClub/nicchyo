@@ -333,6 +333,11 @@ export default function MapEditClientV3() {
         if (key) { setSelection({ kind: "landmark", id: key }); setSheetOpen(true); }
         return;
       }
+      // 店舗を置く道具は、Esc で抜けるまで続けて置ける（道に乗せず、タップした場所に置く）
+      if (tool === "placeShop") {
+        ops.addShopAt(lat, lng);
+        return;
+      }
       if (tool === "select") setSelection(null);
     },
     onMapDoubleClick: () => {
@@ -349,7 +354,9 @@ export default function MapEditClientV3() {
         ? "クリックで点を追加、ダブルクリックかEnterで確定、Escで中断（既存の道の点の近くをクリックすると、その点に合わせます）"
         : tool === "placeLandmark"
             ? "建物を置く場所をクリック。Escで中断"
-            : null;
+            : tool === "placeShop"
+              ? "置きたい場所をクリックすると、出店場所を追加します（道の上でなくてもかまいません）。Escで終了"
+              : null;
 
   return (
     <div className="map-editor">
