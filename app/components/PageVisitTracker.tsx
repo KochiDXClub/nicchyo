@@ -100,18 +100,14 @@ export default function PageVisitTracker() {
       flush(true);
     };
 
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        flush(false);
-      }
-    }, 15000);
-
+    // 以前は15秒ごとにも送っていた（ページ内の定期送信）。1タブにつき毎分4回の関数呼び出しと
+    // web_page_analytics への行追加になり、Active CPU の大半を占めていたため止めた。
+    // 滞在時間は画面遷移・非表示・離脱のときにまとめて送る。
     window.addEventListener("pagehide", handlePageHide);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       flush(true);
-      window.clearInterval(intervalId);
       window.removeEventListener("pagehide", handlePageHide);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
