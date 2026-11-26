@@ -33,6 +33,17 @@ interface AdminDataTableProps<T> {
   /** 付けると、スマホ幅では表の代わりにこのカードを縦に並べる。無ければスマホでも表（横にスクロール） */
   mobileCard?: (row: T, index: number) => React.ReactNode;
   /**
+   * mobileCard の並べ方。既定の "cards" は行ごとに面を付けて縦に積む。
+   * "list" は全行を1つの面にまとめ、行の間は罫線だけで区切る（面が入れ子にならない）。
+   * mobileCard 側は面を付けず、行の中身だけを返すこと。
+   */
+  mobileLayout?: "cards" | "list";
+  /**
+   * 親の残りの高さいっぱいに広げ、スクロールは表の本体だけで行う（見出しと表の外枠は動かない）。
+   * 親は高さが決まった flex の縦並びであること。maxHeightClass より優先する。
+   */
+  fillHeight?: boolean;
+  /**
    * 行が多いときだけ。表示している行だけ描く（上下の余白は空の行で埋めるので、表の構造は変わらない）。
    * スクロールで列幅が揺れないよう table-fixed にするので、各列の className に幅（w-32 など）を付ける。
    */
@@ -58,6 +69,8 @@ export function AdminDataTable<T>({
   selectAllLabel = "表示中の行をすべて選択",
   actions,
   mobileCard,
+  mobileLayout = "cards",
+  fillHeight = false,
   virtualize = false,
   maxHeightClass = "max-h-[70vh]",
 }: AdminDataTableProps<T>) {
@@ -84,10 +97,12 @@ export function AdminDataTable<T>({
       <div
         className={cn(
           "overflow-hidden rounded-card bg-white shadow-card ring-1 ring-line",
-          mobileCard && "hidden sm:block"
+          mobileCard ? "hidden sm:block" : fillHeight && "flex",
+          fillHeight && (mobileCard ? "sm:flex" : "flex-1"),
+          fillHeight && "min-h-0 flex-1 flex-col"
         )}
       >
-        <div ref={scrollRef} className={cn("overflow-auto", maxHeightClass)}>
+        <div ref={scrollRef} className={cn("overflow-auto", fillHeight ? "min-h-0 flex-1" : maxHeightClass)}>
           <table className={cn("w-full", virtualize ? "min-w-[960px] table-fixed" : "min-w-[720px]")}>
             <thead className="sticky top-0 z-10 bg-nicchyo-base">
               <tr className="border-b border-line">
@@ -172,7 +187,21 @@ export function AdminDataTable<T>({
         </div>
       </div>
 
-      {mobileCard && (
+      {mobileCard && mobileLayout === "list" && (
+        <div
+          className={cn(
+            "rounded-card bg-white shadow-card ring-1 ring-line sm:hidden",
+            fillHeight ? "min-h-0 flex-1 overflow-y-auto" : "overflow-hidden"
+          )}
+        >
+          <ul className="divide-y divide-line">
+            {rows.map((row, index) => (
+              <li key={getRowId(row)}>{mobileCard(row, index)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {mobileCard && mobileLayout === "cards" && (
         <ul className="space-y-3 sm:hidden">
           {rows.map((row, index) => (
             <li key={getRowId(row)}>{mobileCard(row, index)}</li>
