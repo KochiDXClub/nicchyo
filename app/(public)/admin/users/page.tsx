@@ -13,14 +13,13 @@ import {
   EmptyState,
   ErrorBoundary,
   ExportActions,
-  ReviewStats,
-  ReviewToolbar,
+  FilterChip,
   ShortcutHelpLauncher,
   StatusBadge,
   type DataColumn,
 } from "@/components/admin";
-import { Plus } from "lucide-react";
-import { Badge, Button, Surface } from "@/components/ui";
+import { Plus, Search } from "lucide-react";
+import { Badge, Button } from "@/components/ui";
 import { CenteredLoading } from "@/components/ui/loading-spinner";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { useAdminUsers, type AdminUser } from "./useAdminUsers";
@@ -153,30 +152,51 @@ function AdminUsersContent() {
       />
 
       <div className="mx-auto max-w-7xl px-4 py-5 pb-20 sm:py-8">
-        <ReviewStats
-          compact
-          items={[
-            { label: "総ユーザー数", value: u.stats.total },
-            { label: "管理者", value: u.stats.admins, tone: "critical" },
-            { label: "出店者", value: u.stats.vendors, tone: "info" },
-            { label: "一般ユーザー", value: u.stats.users, tone: "muted" },
-            { label: "停止中", value: u.stats.suspended, tone: "warning" },
-          ]}
-        />
+        {/* 件数は面に入れず、一行の要約として見せる */}
+        <dl className="mb-4 flex flex-wrap items-baseline gap-x-5 gap-y-2 text-sm text-nicchyo-ink/70">
+          {[
+            { label: "総ユーザー数", value: u.stats.total, tone: "text-nicchyo-ink" },
+            { label: "管理者", value: u.stats.admins, tone: "text-status-critical-fg" },
+            { label: "出店者", value: u.stats.vendors, tone: "text-info-fg" },
+            { label: "一般ユーザー", value: u.stats.users, tone: "text-nicchyo-ink/55" },
+            { label: "停止中", value: u.stats.suspended, tone: "text-status-warning-fg" },
+          ].map((item) => (
+            <div key={item.label} className="flex items-baseline gap-1.5">
+              <dt className="text-nicchyo-ink/55">{item.label}</dt>
+              <dd className={`font-bold tabular-nums ${item.tone}`}>{item.value}</dd>
+            </div>
+          ))}
+        </dl>
 
-        <ReviewToolbar
-          ref={u.searchInputRef}
-          filters={[
-            { key: "all", label: "すべて", count: u.stats.total },
-            { key: "admin", label: "管理者", count: u.stats.admins },
-            { key: "vendor", label: "出店者", count: u.stats.vendors },
-            { key: "general_user", label: "一般", count: u.stats.users },
-            { key: "suspended", label: "停止中", count: u.stats.suspended },
-          ]}
-          value={u.filter}
-          onChange={u.setFilter}
-          search={{ value: u.searchQuery, onChange: u.setSearchQuery, placeholder: "名前・メールアドレスで検索... (/)" }}
-        />
+        {/* 絞り込みと検索は面に包まず、一覧の真上に置く */}
+        <div className="mb-4 space-y-3">
+          <div role="group" aria-label="状態で絞り込む" className="flex flex-wrap gap-2">
+            {[
+              { key: "all", label: "すべて", count: u.stats.total },
+              { key: "admin", label: "管理者", count: u.stats.admins },
+              { key: "vendor", label: "出店者", count: u.stats.vendors },
+              { key: "general_user", label: "一般", count: u.stats.users },
+              { key: "suspended", label: "停止中", count: u.stats.suspended },
+            ].map((f) => (
+              <FilterChip key={f.key} active={f.key === u.filter} onClick={() => u.setFilter(f.key as typeof u.filter)}>
+                {f.label}
+                <span className="ml-1 tabular-nums">({f.count})</span>
+              </FilterChip>
+            ))}
+          </div>
+          <div className="relative w-full sm:max-w-md">
+            <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-nicchyo-ink/40" />
+            <input
+              ref={u.searchInputRef}
+              type="search"
+              aria-label="名前・メールアドレスで検索"
+              placeholder="名前・メールアドレスで検索... (/)"
+              value={u.searchQuery}
+              onChange={(e) => u.setSearchQuery(e.target.value)}
+              className="h-11 w-full rounded-btn border border-line bg-white pl-9 pr-3 text-base text-nicchyo-ink placeholder:text-nicchyo-ink/40 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 sm:h-10 sm:text-sm"
+            />
+          </div>
+        </div>
 
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-nicchyo-ink/70 sm:hidden">
           <label className="flex min-h-11 items-center gap-2">
@@ -238,28 +258,27 @@ function AdminUsersContent() {
             selectAllLabel="表示中のユーザーをすべて選択"
             virtualize
             actions={(user) => renderUserActions(user)}
+            mobileLayout="list"
             mobileCard={(user, index) => (
-              <Surface padding="sm">
-                <div className="flex items-start gap-2">
-                  <label className="flex h-11 w-11 shrink-0 items-center justify-center">
-                    <input type="checkbox" aria-label={`ユーザー「${user.name}」を選択`} checked={u.selection.isSelected(user.id)} onChange={() => u.selection.toggle(user.id, index)} className="h-5 w-5 accent-amber-600" />
-                  </label>
-                  <div className="min-w-0 flex-1 py-1">
-                    <p className="break-words font-semibold text-nicchyo-ink">{user.name}</p>
-                    <p className="break-all text-sm text-nicchyo-ink/55">{user.email}</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABEL[user.role]}</Badge>
-                      {user.status === "suspended" && <StatusBadge status="suspended" customLabel="停止中" />}
-                    </div>
-                    {user.vendorId && <p className="mt-1 text-xs text-nicchyo-ink/55">店舗ID: {user.vendorId}</p>}
+              <div className="flex items-start gap-2 px-3 py-3">
+                <label className="flex h-11 w-11 shrink-0 items-center justify-center">
+                  <input type="checkbox" aria-label={`ユーザー「${user.name}」を選択`} checked={u.selection.isSelected(user.id)} onChange={() => u.selection.toggle(user.id, index)} className="h-5 w-5 accent-amber-600" />
+                </label>
+                <div className="min-w-0 flex-1">
+                  <p className="break-words font-semibold text-nicchyo-ink">{user.name}</p>
+                  <p className="break-all text-sm text-nicchyo-ink/55">{user.email}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABEL[user.role]}</Badge>
+                    {user.status === "suspended" && <StatusBadge status="suspended" customLabel="停止中" />}
                   </div>
+                  {user.vendorId && <p className="mt-1 text-xs text-nicchyo-ink/55">店舗ID: {user.vendorId}</p>}
+                  <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                    <div><dt className="text-nicchyo-ink/55">登録日</dt><dd className="mt-0.5 break-words text-nicchyo-ink">{user.registeredDate}</dd></div>
+                    <div><dt className="text-nicchyo-ink/55">最終ログイン</dt><dd className="mt-0.5 break-words text-nicchyo-ink">{user.lastLogin}</dd></div>
+                  </dl>
+                  <div className="mt-3 flex flex-wrap gap-2">{renderUserActions(user, "md")}</div>
                 </div>
-                <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 text-xs">
-                  <div><dt className="text-nicchyo-ink/55">登録日</dt><dd className="mt-1 break-words text-nicchyo-ink">{user.registeredDate}</dd></div>
-                  <div><dt className="text-nicchyo-ink/55">最終ログイン</dt><dd className="mt-1 break-words text-nicchyo-ink">{user.lastLogin}</dd></div>
-                </dl>
-                <div className="mt-3 flex flex-wrap gap-2">{renderUserActions(user, "md")}</div>
-              </Surface>
+              </div>
             )}
           />
         )}

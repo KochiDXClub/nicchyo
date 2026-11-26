@@ -33,6 +33,12 @@ interface AdminDataTableProps<T> {
   /** 付けると、スマホ幅では表の代わりにこのカードを縦に並べる。無ければスマホでも表（横にスクロール） */
   mobileCard?: (row: T, index: number) => React.ReactNode;
   /**
+   * mobileCard の並べ方。既定の "cards" は行ごとに面を付けて縦に積む。
+   * "list" は全行を1つの面にまとめ、行の間は罫線だけで区切る（面が入れ子にならない）。
+   * mobileCard 側は面を付けず、行の中身だけを返すこと。
+   */
+  mobileLayout?: "cards" | "list";
+  /**
    * 行が多いときだけ。表示している行だけ描く（上下の余白は空の行で埋めるので、表の構造は変わらない）。
    * スクロールで列幅が揺れないよう table-fixed にするので、各列の className に幅（w-32 など）を付ける。
    */
@@ -58,6 +64,7 @@ export function AdminDataTable<T>({
   selectAllLabel = "表示中の行をすべて選択",
   actions,
   mobileCard,
+  mobileLayout = "cards",
   virtualize = false,
   maxHeightClass = "max-h-[70vh]",
 }: AdminDataTableProps<T>) {
@@ -172,7 +179,16 @@ export function AdminDataTable<T>({
         </div>
       </div>
 
-      {mobileCard && (
+      {mobileCard && mobileLayout === "list" && (
+        <div className="overflow-hidden rounded-card bg-white shadow-card ring-1 ring-line sm:hidden">
+          <ul className="divide-y divide-line">
+            {rows.map((row, index) => (
+              <li key={getRowId(row)}>{mobileCard(row, index)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {mobileCard && mobileLayout === "cards" && (
         <ul className="space-y-3 sm:hidden">
           {rows.map((row, index) => (
             <li key={getRowId(row)}>{mobileCard(row, index)}</li>
