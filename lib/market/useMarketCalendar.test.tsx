@@ -15,3 +15,13 @@ it("未登録でも取得成功ならエラーにしない", async () => {
   await waitFor(() => expect(result.current.loading).toBe(false));
   expect(result.current.error).toBe(false);
 });
+
+it("サーバーから初期値が渡されたら、最初から読み込み済みで取得しない", async () => {
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  const initial = { todayIso: "2026-11-19", markets: [] };
+  const { result } = renderHook(() => useMarketCalendar(initial));
+  expect(result.current.loading).toBe(false);
+  expect(result.current.calendar).toEqual(initial);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
