@@ -207,7 +207,7 @@ function AdminShopsContent() {
       key: "name",
       header: "店舗",
       sortKey: "name",
-      className: "w-[30%]",
+      className: "w-72",
       render: (shop) => (
         <>
           <Link href={`/admin/shops/${shop.id}`} className="text-sm font-medium text-nicchyo-ink hover:underline">
@@ -218,7 +218,7 @@ function AdminShopsContent() {
       ),
     },
     { key: "category", header: "カテゴリー", sortKey: "category", className: "w-32", render: (shop) => shop.category },
-    { key: "owner", header: "オーナー", sortKey: "owner", className: "w-36", render: (shop) => shop.owner },
+    { key: "owner", header: "オーナー", sortKey: "owner", className: "w-32", render: (shop) => shop.owner },
     {
       key: "status",
       header: "ステータス",
@@ -236,7 +236,7 @@ function AdminShopsContent() {
     {
       key: "claim",
       header: "代表者・QR",
-      className: "w-40",
+      className: "w-36",
       render: (shop) =>
         claimStates.has(shop.id) ? (
           <ClaimStateBadge state={claimStates.get(shop.id)!} />
@@ -244,7 +244,7 @@ function AdminShopsContent() {
           <span className="text-xs text-nicchyo-ink/40">-</span>
         ),
     },
-    { key: "registeredDate", header: "登録日", sortKey: "registeredDate", className: "w-32 whitespace-nowrap", render: (shop) => shop.registeredDate },
+    { key: "registeredDate", header: "登録日", sortKey: "registeredDate", className: "w-28 whitespace-nowrap", render: (shop) => shop.registeredDate },
   ];
 
   const shopActions = (shop: AdminShop, size: "sm" | "md" = "sm") => (
