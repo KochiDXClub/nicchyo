@@ -303,7 +303,7 @@ export default function ConsultClient() {
         <ShopDetailBanner
           shop={selectedShop}
           onClose={() => setSelectedShop(null)}
-          onNavigate={navigateToSelectedShop}
+          onNavigate={selectedShop && formatShopIdToCode(selectedShop.id) ? navigateToSelectedShop : undefined}
         />
       )}
       {/* お店の詳細を開いている間は、右上のもどるバーを隠す（詳細パネルの閉じる・お気に入りと重なるため）。

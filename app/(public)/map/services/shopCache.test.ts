@@ -75,6 +75,15 @@ describe("fetchPublicShops", () => {
     await fetchPublicShops();
     expect(mocks.buildVendorShops).toHaveBeenCalledWith(expect.objectContaining({ vendors: [{ id: "v1", shop_name: "公開", public_shop_id: 1001 }], assignments: [expect.objectContaining({ vendor_id: "v1", location_id: "place" })] }), [], { stableIds: true });
   });
+  it("公開切替の前も、店舗IDを付けた出店者だけを stableIds で組み立てる（全店が消えない）", async () => {
+    const rows = { ...baseRows, vendors: [{ id: "v1", shop_name: "店" }, { id: "noid", shop_name: "IDなし" }], locations: [], assignments: [] };
+    mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows, failedTables: [] });
+    mocks.fetchShopDelta.mockResolvedValue({ vendors: [], products: [], deletedProductIds: [], visibleVendorCount: 2 });
+    mocks.readPublicScheduleRollout.mockResolvedValue(false);
+    mocks.fetchAllRows.mockResolvedValue({ data: [{ id: "v1", public_shop_id: 1001 }], error: null });
+    await fetchPublicShops();
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(expect.objectContaining({ vendors: [{ id: "v1", shop_name: "店", public_shop_id: 1001 }] }), [], { stableIds: true });
+  });
   it("非出店・休市でも公開店舗プロフィールを残し、非公開店舗や地図座標を返さない", async () => {
     const rows = { ...baseRows, vendors: [{ id: "v1", shop_name: "公開" }, { id: "hidden", shop_name: "非公開" }], assignments: [] };
     mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows, failedTables: [] });

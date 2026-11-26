@@ -48,8 +48,6 @@ type Props = {
   roads: EditableRoad[];
   landmarks: EditableLandmark[];
   draft: { lat: number; lng: number }[];
-  /** 区画分けツールのプレビュー（適用前の、新しく作る・動く・消す区画の位置） */
-  previewSlots: Array<{ lat: number; lng: number; status: "create" | "move" | "delete" }>;
   search: string;
   zoomIdx: number;
   setZoomIdx: React.Dispatch<React.SetStateAction<number>>;
@@ -78,7 +76,6 @@ const SRC_ROAD_UNSAVED = "nicchyo-edit-road-unsaved";
 const SRC_DRAFT = "nicchyo-edit-draft";
 const SRC_DRAFT_CURSOR = "nicchyo-edit-draft-cursor";
 const SRC_SHOPS = "nicchyo-edit-shops";
-const SRC_SLOT_PREVIEW = "nicchyo-edit-slot-preview";
 const SRC_VENDOR_DRAG = "nicchyo-edit-vendor-drag";
 
 const LAYER_ROAD_CASING = "nicchyo-edit-road-casing-layer";
@@ -90,7 +87,6 @@ const LAYER_DRAFT_POINTS = "nicchyo-edit-draft-points-layer";
 const LAYER_DRAFT_CURSOR = "nicchyo-edit-draft-cursor-layer";
 const LAYER_SHOP_DOTS = "nicchyo-edit-shop-dots-layer";
 const LAYER_SHOP_NUMBERS = "nicchyo-edit-shop-numbers-layer";
-const LAYER_SLOT_PREVIEW = "nicchyo-edit-slot-preview-layer";
 const LAYER_VENDOR_DRAG = "nicchyo-edit-vendor-drag-layer";
 /** ピンを掴んだ・離した地点から、区画を探す範囲（px）。点が小さいので少し広めに取る */
 const SLOT_HIT_RADIUS_PX = 8;
@@ -231,17 +227,25 @@ function buildShopFeatureCollection(
   return { type: "FeatureCollection", features };
 }
 
-/** 建物ラベル（Marker）の見た目を、旧 MapEditCanvas.tsx の建物マーカーに合わせて更新する */
+/**
+ * 建物ラベル（Marker）の見た目を、旧 MapEditCanvas.tsx の建物マーカーに合わせて更新する。
+ * 名前は選択中・未保存・検索でヒットしたものだけ出し、それ以外はアイコンだけの小さな印にする
+ * （スマホで建物名が重なって地図を覆うのを防ぐ）。名前は title / aria-label で残す。
+ */
 function styleLandmarkElement(
   el: HTMLDivElement,
   landmark: EditableLandmark,
-  opts: { isSelected: boolean; opacity: number; draggable: boolean; unsaved: boolean }
+  opts: { isSelected: boolean; opacity: number; draggable: boolean; unsaved: boolean; showName: boolean }
 ) {
-  el.textContent = `\u{1F3DB}\u{FE0F} ${landmark.name}`;
+  const icon = "\u{1F3DB}\u{FE0F}";
+  el.textContent = opts.showName ? `${icon} ${landmark.name}` : icon;
+  el.title = landmark.name;
+  el.setAttribute("aria-label", landmark.name);
   Object.assign(el.style, {
-    padding: "3px 8px",
-    borderRadius: "8px",
-    fontSize: "11px",
+    padding: opts.showName ? "3px 8px" : "2px 4px",
+    borderRadius: opts.showName ? "8px" : "999px",
+    fontSize: opts.showName ? "11px" : "12px",
+    lineHeight: "1.2",
     fontWeight: "800",
     whiteSpace: "nowrap",
     background: opts.isSelected ? "#92400E" : "#ffffffee",
@@ -386,7 +390,6 @@ export default function MapEditCanvasMapLibre({
   roads,
   landmarks,
   draft,
-  previewSlots,
   search,
   zoomIdx,
   setZoomIdx,
@@ -473,7 +476,6 @@ export default function MapEditCanvasMapLibre({
       // promoteId: ドラッグ中の移動先の強調に feature-state（区画ごとの状態）を使うため
       map.addSource(SRC_SHOPS, { type: "geojson", data: emptyFC(), promoteId: "locationId" });
       map.addSource(SRC_VENDOR_DRAG, { type: "geojson", data: emptyFC() });
-      map.addSource(SRC_SLOT_PREVIEW, { type: "geojson", data: emptyFC() });
 
       // 道: 当たり判定を広めに取った下地（casing）の上に、実際の道幅の塗り（fill）を重ねる
       map.addLayer({
@@ -663,34 +665,6 @@ export default function MapEditCanvasMapLibre({
       map.on("mousemove", moveVendorDrag);
       map.on("mouseup", endVendorDrag);
 
-      // 区画分けのプレビュー。区画の上に重ね、作る・動く・消すを色で分ける
-      map.addLayer({
-        id: LAYER_SLOT_PREVIEW,
-        type: "circle",
-        source: SRC_SLOT_PREVIEW,
-        paint: {
-          "circle-radius": ["step", ["zoom"], 5, MAPLIBRE_ZOOMS[1], 7, MAPLIBRE_ZOOMS[2], 14] as unknown as ExpressionSpecification,
-          "circle-color": [
-            "match",
-            ["get", "status"],
-            "create",
-            EDITOR_COLORS.previewCreate,
-            "move",
-            EDITOR_COLORS.previewMove,
-            "rgba(0,0,0,0)",
-          ] as unknown as ExpressionSpecification,
-          "circle-opacity": 0.85,
-          "circle-stroke-width": 2.5,
-          "circle-stroke-color": [
-            "match",
-            ["get", "status"],
-            "delete",
-            EDITOR_COLORS.previewDelete,
-            EDITOR_COLORS.surface,
-          ] as unknown as ExpressionSpecification,
-        },
-      });
-
       // 道具が実際にこのレイヤーで選択したときだけ消費したことにする（一律で立てると、
       // 道を描く道具で道の上をクリックして点を打つ、といった操作が下の「空き地クリック」に
       // 届かなくなる）。区画は道の上に重なっているため、区画のクリックを道より優先する
@@ -702,7 +676,7 @@ export default function MapEditCanvasMapLibre({
       });
       map.on("click", LAYER_ROAD_CASING, (e) => {
         // 道を描く道具・建物を置く道具では、空き地クリック（onMapClick）へ流す
-        if (toolRef.current !== "select" && toolRef.current !== "splitSlots") return;
+        if (toolRef.current !== "select") return;
         if (consumedClickRef.current) return;
         const nearbySlot = toolRef.current === "select" ? slotAt(e.point) : null;
         if (nearbySlot) {
@@ -878,6 +852,8 @@ export default function MapEditCanvasMapLibre({
       // 選択ツールのときだけ掴める。他の道具のときは地図へのクリックを奪わない
       const draggable = tool === "select";
       const unsaved = unsavedKeys.has(`landmarks:${landmark.key}`);
+      // 名前を出すのは、選択中・未保存・検索でヒットしたものだけ（それ以外はアイコンのみ）
+      const showName = isSelected || unsaved || (!!query && !dim);
 
       let marker = existing.get(landmark.key);
       if (!marker) {
@@ -904,7 +880,7 @@ export default function MapEditCanvasMapLibre({
         marker.setLngLat([landmark.lng, landmark.lat]);
       }
       marker.setDraggable(draggable);
-      styleLandmarkElement(marker.getElement() as HTMLDivElement, landmark, { isSelected, opacity, draggable, unsaved });
+      styleLandmarkElement(marker.getElement() as HTMLDivElement, landmark, { isSelected, opacity, draggable, unsaved, showName });
     }
 
     for (const [key, marker] of existing) {
@@ -1008,19 +984,6 @@ export default function MapEditCanvasMapLibre({
     }
     midpointMarkersRef.current = nextMidpoints;
   }, [roads, selectedRoadId, tool, ready]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready) return;
-    (map.getSource(SRC_SLOT_PREVIEW) as maplibregl.GeoJSONSource).setData({
-      type: "FeatureCollection",
-      features: previewSlots.map((slot) => ({
-        type: "Feature",
-        properties: { status: slot.status },
-        geometry: { type: "Point", coordinates: [slot.lng, slot.lat] },
-      })),
-    });
-  }, [previewSlots, ready]);
 
   // 描いている道（線と、打った点）
   useEffect(() => {

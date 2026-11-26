@@ -29,9 +29,18 @@ export function useAdminNotifications(enabled: boolean) {
 
   useEffect(() => {
     fetch_();
-    // 60秒ごとにポーリング
-    const interval = setInterval(fetch_, 60_000);
-    return () => clearInterval(interval);
+    // 60秒ごとにポーリング。タブが裏にある間は取らず、表示に戻ったときに取り直す
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "hidden") void fetch_();
+    }, 60_000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") void fetch_();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [fetch_]);
 
   const markAllRead = useCallback(async () => {

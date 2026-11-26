@@ -3,6 +3,8 @@ import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef, type ReactNode } from "react";
 import { withCategory, resolveCategory, type Category } from "./catalog";
 const UPDATE_EVENT = "nicchyo:categories-updated";
+/** 画面に戻る（フォーカス）ごとの再取得は、この間隔より短ければ省く */
+const FOCUS_REFETCH_MIN_INTERVAL_MS = 60_000;
 export function notifyCategoriesUpdated() {
   window.dispatchEvent(new Event(UPDATE_EVENT));
   try { localStorage.setItem(UPDATE_EVENT, String(Date.now())); } catch { /* 保存不可でも同じ画面へ通知 */ }
@@ -13,10 +15,12 @@ export function CategoryProvider({ initial, children }: { initial: Category[]; c
   const [categories, setCategories] = useState(initial);
   const current = useRef(categories);
   current.current = categories;
+  const lastFetchedAt = useRef(0);
   useEffect(() => {
     let active = true;
     const refresh = async (bypassCache = false) => {
       if (document.visibilityState === "hidden") return;
+      lastFetchedAt.current = Date.now();
       try {
         const response = await fetch(bypassCache ? `/api/categories?updated=${Date.now()}` : "/api/categories");
         if (!response.ok) return;
@@ -33,7 +37,10 @@ export function CategoryProvider({ initial, children }: { initial: Category[]; c
     const timer = setInterval(() => void refresh(), 300_000);
     const onStorage = (event: StorageEvent) => { if (event.key === UPDATE_EVENT) void refresh(true); };
     const onUpdate = () => { void refresh(true); };
-    const onFocus = () => { void refresh(); };
+    const onFocus = () => {
+      if (Date.now() - lastFetchedAt.current < FOCUS_REFETCH_MIN_INTERVAL_MS) return;
+      void refresh();
+    };
     window.addEventListener("storage", onStorage);
     window.addEventListener(UPDATE_EVENT, onUpdate);
     window.addEventListener("focus", onFocus);

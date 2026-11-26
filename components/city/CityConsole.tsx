@@ -45,7 +45,7 @@ export function CityConsole({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className={`min-h-screen bg-slate-50 ${CONSOLE_SIDEBAR_OFFSET_CLASS}`}>
+    <div className={`min-h-screen bg-nicchyo-ink/5 ${CONSOLE_SIDEBAR_OFFSET_CLASS}`}>
       <ConsoleSidebar
         isOpen={isOpen}
         onToggle={() => setIsOpen((v) => !v)}

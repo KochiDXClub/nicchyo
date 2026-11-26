@@ -1,8 +1,8 @@
 /**
  * マップ本体（MapView）の props
  *
- * 描画ライブラリ（Leaflet 版 components/MapView.tsx / MapLibre 版 components/maplibre/MapViewMapLibre.tsx）
- * のどちらからも参照するため、特定のライブラリのファイルに置かずここで定義する。
+ * 描画ライブラリ（components/maplibre/MapViewMapLibre.tsx）と
+ * 呼び出し側（MapPageClient.tsx・検索画面）から参照するため、特定のライブラリのファイルに置かずここで定義する。
  */
 
 import type { ReactNode } from "react";

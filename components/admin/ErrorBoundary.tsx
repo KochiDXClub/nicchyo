@@ -36,13 +36,13 @@ export class ErrorBoundary extends React.Component<
       }
 
       return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+        <div className="flex min-h-screen items-center justify-center bg-nicchyo-base px-4">
           <div className="max-w-md rounded-lg bg-white p-8 shadow-lg text-center">
             <div className="text-6xl mb-4">⚠️</div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            <h2 className="text-2xl font-bold text-nicchyo-ink mb-2">
               エラーが発生しました
             </h2>
-            <p className="text-gray-600 mb-6">
+            <p className="text-nicchyo-ink/70 mb-6">
               申し訳ございません。予期しないエラーが発生しました。
             </p>
             <button

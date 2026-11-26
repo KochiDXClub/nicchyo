@@ -5,7 +5,7 @@ import { ShopPreview } from "@/components/admin/ShopPreview";
 import { formatMarketAddress, parseMarketAddress } from "@/lib/market-schedule/address";
 import { slotLabel } from "../../../map/types/editableShop";
 import type { ChomeJudgement } from "@/lib/map/chomeBoundaries";
-import { CHOMES, getChome, normalizeChomeId, type ChomeId } from "@/lib/map/chomes";
+import { getChome, normalizeChomeId } from "@/lib/map/chomes";
 import { EDITOR_COLORS } from "../editorTheme";
 import type { EditableShop, EditableVendor } from "../types";
 import {
@@ -42,6 +42,8 @@ export default function SlotVendorPanel({
   onApplyFieldObservation,
   onAddressChange,
   onChomeChange,
+  chomeLabels = [],
+  marketName,
   autoChome,
   onDelete,
 }: {
@@ -55,11 +57,19 @@ export default function SlotVendorPanel({
   onApplyFieldObservation?: () => void;
   onAddressChange?: (address: { main: number; branch: number | null } | null) => void;
   /** 丁目を選ぶ（手で設定）／"auto" で自動判定に戻す */
-  onChomeChange: (value: ChomeId | "auto") => void;
+  onChomeChange: (value: string | "auto") => void;
+  /** この区画の市の丁目の名前（市の管理画面で登録したもの）。選択肢になる */
+  chomeLabels?: readonly string[];
+  /** この区画の市の名前（丁目の見出しに使う） */
+  marketName?: string;
   /** この区画の位置からの自動判定の結果（道の位置が無い区画は null） */
   autoChome: ChomeJudgement | null;
   onDelete: () => void;
 }) {
+  // 手で設定された丁目が市の登録から外れていても、その値を選択肢に残す（黙って別の丁目に変わらないように）
+  const chomeOptions = shop.chomeLocked && shop.chome && !chomeLabels.includes(shop.chome)
+    ? [...chomeLabels, shop.chome]
+    : [...chomeLabels];
   const [previewVendor, setPreviewVendor] = useState<string | null>(null);
   const hasRegisteredVendors = (shop.placeVendors?.length ?? 0) > 0;
   const hasMultipleVendors = (shop.placeVendors?.length ?? 0) > 1;
@@ -103,17 +113,17 @@ export default function SlotVendorPanel({
       </div>}
 
       <label>
-        <span style={label}>日曜市の丁目</span>
+        <span style={label}>{marketName ?? "この市"}の丁目</span>
         <select
-          aria-label="日曜市の丁目"
-          value={shop.chomeLocked ? String(normalizeChomeId(shop.chome) ?? "auto") : "auto"}
-          onChange={(e) => onChomeChange(e.target.value === "auto" ? "auto" : (Number(e.target.value) as ChomeId))}
+          aria-label={`${marketName ?? "この市"}の丁目`}
+          value={shop.chomeLocked && shop.chome ? shop.chome : "auto"}
+          onChange={(e) => onChomeChange(e.target.value === "auto" ? "auto" : e.target.value)}
           style={{ ...inputStyle, marginBottom: 4 }}
         >
           <option value="auto">自動（道の位置から決める）</option>
-          {CHOMES.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
+          {chomeOptions.map((name) => (
+            <option key={name} value={name}>
+              {name}
             </option>
           ))}
         </select>

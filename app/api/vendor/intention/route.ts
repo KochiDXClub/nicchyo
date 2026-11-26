@@ -4,12 +4,17 @@ import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { requireVendorContext } from "@/lib/vendor/shopContext.server";
 import {
   INTENTION_RESPONSE_COLUMNS,
-  IntentionInputSchema,
-  normalizeIntentionInput,
+  IntentionPlaceInputSchema,
   rowToIntentionResponse,
   type IntentionResponseRow,
 } from "@/lib/vendor/intention";
-import { findOpenIntentionSeason, intentionDb, readOwnIntentionResponse } from "@/lib/vendor/intention.server";
+import {
+  findOpenIntentionSeason,
+  intentionDb,
+  intentionPlaceExists,
+  listIntentionPlaces,
+  readOwnIntentionResponse,
+} from "@/lib/vendor/intention.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +25,7 @@ export const dynamic = "force-dynamic";
  */
 const PERMISSION = "store_edit" as const;
 
-/** GET: 受付中の調査と、自分の店舗の回答 */
+/** GET: 受付中の調査と、自分の店舗の回答、選べる場所 */
 export async function GET() {
   const auth = await requireVendorContext({ permission: PERMISSION });
   if (!auth.ok) return auth.response;
@@ -31,13 +36,14 @@ export async function GET() {
   try {
     const season = await findOpenIntentionSeason(db);
     const response = season ? await readOwnIntentionResponse(db, season.seasonYear, auth.vendorId) : null;
-    return NextResponse.json({ season, response, editable: season !== null });
+    const places = season ? await listIntentionPlaces(db) : [];
+    return NextResponse.json({ season, response, places, editable: season !== null });
   } catch {
     return NextResponse.json({ error: "読み込めませんでした" }, { status: 500 });
   }
 }
 
-/** PUT: 受付中の調査に、自分の店舗の回答を書く（何度でも書き直せる） */
+/** PUT: 受付中の調査に、自分の店舗の出店したい場所を書く（何度でも書き直せる） */
 export async function PUT(request: Request) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
@@ -56,15 +62,18 @@ export async function PUT(request: Request) {
   const db = intentionDb();
   if (!db) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  const parsed = IntentionInputSchema.safeParse(await request.json().catch(() => null));
+  const parsed = IntentionPlaceInputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "入力を確かめてください" }, { status: 400 });
   }
-  const input = normalizeIntentionInput(parsed.data);
 
   try {
     const season = await findOpenIntentionSeason(db);
     if (!season) return NextResponse.json({ error: "受付期間外のため、回答できません" }, { status: 409 });
+
+    if (!(await intentionPlaceExists(db, parsed.data.placeId))) {
+      return NextResponse.json({ error: "出店したい場所を選び直してください" }, { status: 400 });
+    }
 
     const { data, error } = await db
       .from("vendor_intention_responses")
@@ -73,10 +82,7 @@ export async function PUT(request: Request) {
           season_year: season.seasonYear,
           // 店舗は所属から決める（本文の値は使わない）
           vendor_id: auth.vendorId,
-          booth_count: input.boothCount,
-          frequency: input.frequency,
-          preferred_months: input.preferredMonths,
-          note: input.note,
+          place_id: parsed.data.placeId,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "season_year,vendor_id" },

@@ -373,8 +373,8 @@ describe("fetchAskSnapshot", () => {
 
     expect(snapshot.productPhotos).toEqual({ トマト: "https://example.supabase.co/t.webp" });
     expect(snapshot.products).toEqual([
-      { name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp" },
-      { name: "なす", price: null, imageUrl: undefined },
+      { name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp", seasons: [] },
+      { name: "なす", price: null, imageUrl: undefined, seasons: [] },
     ]);
   });
 });

@@ -5,7 +5,7 @@
 export const DEFAULT_MAX_LANDMARKS = 80;
 
 /**
- * 空き区画（出店者のいない区画）の上限。区画分けツールで道に空き区画をまとめて
+ * 空き区画（出店者のいない区画）の上限。店舗の取り込みで道に空き区画をまとめて
  * 作るため、全区画ぶん（店番の上限と同程度）まで置けるようにしている。
  */
 export const DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS = 300;

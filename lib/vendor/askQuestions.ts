@@ -21,6 +21,16 @@ import type { ShopImageKind } from "@/lib/shopImages";
  * - profile : 店舗情報の基本項目。トップでは聞かず、編集画面だけに出す
  */
 
+/** 旬（季節をまたぐ商品の季節）。product_seasons の season_id は 0〜3 の順 */
+export type SeasonKey = "spring_summer" | "summer_autumn" | "autumn_winter" | "winter_spring";
+
+export const SEASON_OPTIONS: { key: SeasonKey; label: string }[] = [
+  { key: "spring_summer", label: "春ー夏" },
+  { key: "summer_autumn", label: "夏ー秋" },
+  { key: "autumn_winter", label: "秋ー冬" },
+  { key: "winter_spring", label: "冬ー春" },
+];
+
 export type AskQuestionId =
   | "weekly-products"
   | "hours"
@@ -31,6 +41,7 @@ export type AskQuestionId =
   | "website"
   | "rain"
   | "strength"
+  | "introduction"
   | "motivation"
   | "years"
   | "sunday-love"
@@ -80,7 +91,7 @@ export type VendorAskSnapshot = {
   ownerName?: string;
   ownerNamePublic: boolean;
   /** 主な商品・値段・写真（店舗情報の編集画面の「主な商品」）。写真は products テーブルの同じ名前の商品から読む */
-  products: { name: string; price: number | null; imageUrl?: string }[];
+  products: { name: string; price: number | null; imageUrl?: string; seasons?: SeasonKey[] }[];
   schedule: string[];
   businessHoursStart?: string;
   businessHoursEnd?: string;
@@ -98,6 +109,8 @@ export type VendorAskSnapshot = {
   /** 雨の日の質問に答えたか。rainPolicy の既定値（当日判断）のままとは区別する */
   rainAnswered: boolean;
   strength?: string;
+  /** お店の紹介（商品の上に出る平文、200字まで） */
+  introduction?: string;
   motivation?: string;
   yearsRunning?: number | null;
   sundayLove?: string;
@@ -227,6 +240,16 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
     },
   },
 
+  {
+    id: "introduction",
+    tier: "profile",
+    text: "お店の紹介を書いてや。商品の上に出るよ",
+    placeholder: "例: 朝採れの野菜を、その場で袋詰めしています。",
+    input: "long-text",
+    isAnswered: (s) => filled(s.introduction),
+    summary: (s) => textOrNull(s.introduction),
+  },
+
   // マニアックな質問
   {
     id: "strength",
@@ -348,7 +371,7 @@ export const ASK_GROUPS: readonly {
   title: string;
   ids: readonly AskQuestionId[];
 }[] = [
-  { key: "face", title: "お店の顔", ids: ["shop-photo", "shop-name", "category", "style", "owner"] },
+  { key: "face", title: "お店の顔", ids: ["shop-photo", "shop-name", "category", "style", "introduction", "owner"] },
   { key: "goods", title: "品ぞろえ", ids: ["weekly-products", "products", "signature", "signature-pr"] },
   { key: "market", title: "出店のこと", ids: ["hours", "schedule", "rain", "payment"] },
   { key: "link", title: "つながり", ids: ["instagram", "x", "website"] },
@@ -444,6 +467,7 @@ export type AskAnswer =
   | { id: "website"; value: string }
   | { id: "rain"; policy: RainPolicy; note: string }
   | { id: "strength"; text: string }
+  | { id: "introduction"; text: string }
   | { id: "motivation"; text: string }
   | { id: "years"; years: number }
   | { id: "sunday-love"; text: string }
@@ -461,5 +485,6 @@ export type AskAnswer =
   | { id: "style"; tags: string[]; note: string }
   | { id: "owner"; name: string; isPublic: boolean }
   // imageFile: 触っていなければ undefined（今の写真のまま）、外すなら null、選び直したなら新しい写真
-  | { id: "products"; items: { name: string; price: number | null; imageFile?: File | null }[] }
+  // seasons: 触っていなければ undefined（今の旬のまま）
+  | { id: "products"; items: { name: string; price: number | null; imageFile?: File | null; seasons?: SeasonKey[] }[] }
   | { id: "schedule"; items: string[] };

@@ -3,7 +3,8 @@
 /**
  * ページ公開設定をクライアント側で参照するための Context
  *
- * - 起動時に /api/page-visibility を1回取得して保持する
+ * - サーバー（app/layout.tsx）から読んだ設定を initial で受け取り、そのまま保持する
+ * - initial が無いとき（サーバーで読めなかったとき）だけ /api/page-visibility を1回取得する
  * - usePageVisibility().isLinkVisible(path) でリンクを出すかどうかを判定する
  * - 取得前・取得失敗時は全ページ public 扱い（リンクは表示される）
  *
@@ -24,11 +25,19 @@ type PageVisibilityContextValue = {
 
 const PageVisibilityContext = createContext<PageVisibilityContextValue | null>(null);
 
-export function PageVisibilityProvider({ children }: { children: ReactNode }) {
+export function PageVisibilityProvider({
+  children,
+  initial,
+}: {
+  children: ReactNode;
+  /** サーバーで読んだ公開設定。あればクライアントからの取得は行わない */
+  initial?: PageVisibilitySettings | null;
+}) {
   const { user, isLoggedIn } = useAuth();
-  const [settings, setSettings] = useState<PageVisibilitySettings>(EMPTY_PAGE_VISIBILITY_SETTINGS);
+  const [settings, setSettings] = useState<PageVisibilitySettings>(initial ?? EMPTY_PAGE_VISIBILITY_SETTINGS);
 
   useEffect(() => {
+    if (initial) return;
     let active = true;
     void fetch("/api/page-visibility")
       .then(async (res) => (res.ok ? res.json() : null))
@@ -41,7 +50,7 @@ export function PageVisibilityProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [initial]);
 
   const role: VisibilityRole = isLoggedIn && user ? user.role : "anon";
 

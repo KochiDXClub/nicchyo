@@ -17,7 +17,6 @@ import { resolveSlotPositions } from "@/lib/map/roadSlotPosition";
  */
 const NO_CHANGES: EntityChange[] = [];
 const NO_KEYS: ReadonlySet<string> = new Set<string>();
-const NO_PREVIEW: never[] = [];
 const NO_DRAFT: never[] = [];
 const ZOOM_MAX = 2;
 const noop = () => {};
@@ -53,7 +52,6 @@ export function SchedulePointPicker({ selected, onSelect }: { selected: string; 
       roads={layout.roads}
       landmarks={layout.landmarks}
       draft={NO_DRAFT}
-      previewSlots={NO_PREVIEW}
       search=""
       zoomIdx={zoomIdx}
       setZoomIdx={setZoomIdx}

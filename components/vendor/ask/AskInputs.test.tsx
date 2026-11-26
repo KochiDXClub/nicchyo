@@ -109,14 +109,14 @@ describe("主な商品の入力（名前・写真・値段）", () => {
   it("写真を触らなければ、imageFile は渡さない（今の写真のまま）", () => {
     const { onSubmit } = renderProducts([{ name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp" }]);
     submit();
-    expect(onSubmit).toHaveBeenCalledWith({ id: "products", items: [{ name: "トマト", price: 300 }] });
+    expect(onSubmit).toHaveBeenCalledWith({ id: "products", items: [{ name: "トマト", price: 300, seasons: [] }] });
   });
 
   it("保存済みの写真は、×で外すと imageFile: null で渡す", () => {
     const { onSubmit } = renderProducts([{ name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp" }]);
     fireEvent.click(screen.getByRole("button", { name: "トマトの写真を外す" }));
     submit();
-    expect(onSubmit).toHaveBeenCalledWith({ id: "products", items: [{ name: "トマト", price: 300, imageFile: null }] });
+    expect(onSubmit).toHaveBeenCalledWith({ id: "products", items: [{ name: "トマト", price: 300, imageFile: null, seasons: [] }] });
   });
 
   it("新しい商品に写真をつけて足すと、名前・値段・写真をまとめて渡す", async () => {
@@ -129,7 +129,7 @@ describe("主な商品の入力（名前・写真・値段）", () => {
 
     submit();
 
-    expect(onSubmit).toHaveBeenCalledWith({ id: "products", items: [{ name: "トマト", price: 300, imageFile: file }] });
+    expect(onSubmit).toHaveBeenCalledWith({ id: "products", items: [{ name: "トマト", price: 300, imageFile: file, seasons: [] }] });
   });
 });
 

@@ -9,6 +9,7 @@ import { AuthProvider } from "@/lib/auth/AuthContext";
 import { MenuProvider } from "@/lib/ui/MenuContext";
 import FavoritesBagMigration from "@/app/components/FavoritesBagMigration";
 import { PageVisibilityProvider } from "@/lib/pageVisibility/PageVisibilityContext";
+import { fetchEffectivePageVisibility } from "@/lib/pageVisibility/server";
 import AppHeader from "./components/AppHeader";
 import MapLoadingProvider from "./components/MapLoadingProvider";
 import PageVisitTracker from "./components/PageVisitTracker";
@@ -118,7 +119,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // script-src 'nonce-…' 'strict-dynamic' の CSP で全スクリプトがブロックされて
   // ハイドレーションしない（近況ページが提灯ローディングで止まる等）ため必須。
   // https://nextjs.org/docs/app/guides/content-security-policy#nonces
-  const [categories, requestHeaders, siteCopy] = await Promise.all([fetchCategories().catch(() => []), headers(), getPublishedSiteCopy()]);
+  const [categories, requestHeaders, siteCopy, pageVisibility] = await Promise.all([
+    fetchCategories().catch(() => []),
+    headers(),
+    getPublishedSiteCopy(),
+    // ナビのリンク表示用。サーバーで読んで初期値にすると、起動後の取得待ちでリンクが出入りしない
+    fetchEffectivePageVisibility().catch(() => null),
+  ]);
   const nonce = requestHeaders.get("x-nonce") ?? undefined;
   const locale = toLocale(requestHeaders.get(LOCALE_HEADER));
 
@@ -137,7 +144,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <LocaleProvider locale={locale}>
         <CategoryProvider initial={categories}>
         <AuthProvider>
-          <PageVisibilityProvider>
+          <PageVisibilityProvider initial={pageVisibility}>
             <MenuProvider>
               <MapLoadingProvider>
                 <AppHeader />

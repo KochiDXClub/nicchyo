@@ -1,10 +1,8 @@
 /**
  * 道の見た目（色・線幅）の唯一の定義元。
  *
- * Leaflet 版（components/RoadOverlay.tsx）と MapLibre 版
- * （components/maplibre/MapViewMapLibre.tsx）は同じ道を別々のライブラリで描く。
- * 以前は色も線幅も両方に直書きしていたため、片方だけ直すと見た目がズレた。
- * 見た目に関わる値はすべてここに集約し、両方がここを参照する。
+ * 道の描画（components/maplibre/MapViewMapLibre.tsx）が参照する。
+ * 見た目に関わる値はすべてここに集約し、直書きしない。
  *
  * 【塗り分けの考え方】
  * 道を1色のベタで塗るのをやめ、「グレー＝地面が見えている＝通り抜ける場所」
