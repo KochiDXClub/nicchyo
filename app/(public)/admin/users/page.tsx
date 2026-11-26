@@ -157,21 +157,7 @@ function AdminUsersContent() {
       <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-4 pb-24 pt-3 sm:pb-4 sm:pt-4">
         {/* 件数・検索・絞り込みを、できるだけ少ない段で収める */}
         <div className="mb-3 shrink-0 space-y-2">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-            <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-nicchyo-ink/70">
-          {[
-            { label: "総ユーザー数", value: u.stats.total, tone: "text-nicchyo-ink" },
-            { label: "管理者", value: u.stats.admins, tone: "text-status-critical-fg" },
-            { label: "出店者", value: u.stats.vendors, tone: "text-info-fg" },
-            { label: "一般ユーザー", value: u.stats.users, tone: "text-nicchyo-ink/55" },
-            { label: "停止中", value: u.stats.suspended, tone: "text-status-warning-fg" },
-          ].map((item) => (
-            <div key={item.label} className="flex items-baseline gap-1.5">
-              <dt className="text-nicchyo-ink/55">{item.label}</dt>
-              <dd className={`font-bold tabular-nums ${item.tone}`}>{item.value}</dd>
-            </div>
-          ))}
-            </dl>
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-end">
             <div className="relative w-full lg:w-80">
               <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-nicchyo-ink/40" />
               <input
