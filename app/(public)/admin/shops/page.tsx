@@ -6,6 +6,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDebounce } from "use-debounce";
+import { Search } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { excelText } from "@/lib/admin/exportUtils";
 import { showToast } from "@/lib/admin/toast";
@@ -18,8 +19,6 @@ import {
   ErrorBoundary,
   ExportActions,
   FilterChip,
-  ReviewStats,
-  ReviewToolbar,
   ShortcutHelpLauncher,
   StatusBadge,
   useBulkAction,
@@ -27,7 +26,7 @@ import {
   useRowSelection,
   type DataColumn,
 } from "@/components/admin";
-import { Button, Surface } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { CenteredLoading } from "@/components/ui/loading-spinner";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { useSortableData } from "@/components/admin/desktop/SortableTableHeader";
@@ -208,21 +207,23 @@ function AdminShopsContent() {
       key: "name",
       header: "店舗",
       sortKey: "name",
+      className: "w-[30%]",
       render: (shop) => (
         <>
           <Link href={`/admin/shops/${shop.id}`} className="text-sm font-medium text-nicchyo-ink hover:underline">
             {shop.name}
           </Link>
-          <div className="text-xs text-nicchyo-ink/55">{shop.email}</div>
+          <div className="truncate text-xs text-nicchyo-ink/55">{shop.email}</div>
         </>
       ),
     },
-    { key: "category", header: "カテゴリー", sortKey: "category", render: (shop) => shop.category },
-    { key: "owner", header: "オーナー", sortKey: "owner", render: (shop) => shop.owner },
+    { key: "category", header: "カテゴリー", sortKey: "category", className: "w-32", render: (shop) => shop.category },
+    { key: "owner", header: "オーナー", sortKey: "owner", className: "w-36", render: (shop) => shop.owner },
     {
       key: "status",
       header: "ステータス",
       sortKey: "status",
+      className: "w-32",
       render: (shop) => (
         <>
           <StatusBadge status={shop.status} />
@@ -235,6 +236,7 @@ function AdminShopsContent() {
     {
       key: "claim",
       header: "代表者・QR",
+      className: "w-40",
       render: (shop) =>
         claimStates.has(shop.id) ? (
           <ClaimStateBadge state={claimStates.get(shop.id)!} />
@@ -242,17 +244,17 @@ function AdminShopsContent() {
           <span className="text-xs text-nicchyo-ink/40">-</span>
         ),
     },
-    { key: "registeredDate", header: "登録日", sortKey: "registeredDate", className: "whitespace-nowrap", render: (shop) => shop.registeredDate },
+    { key: "registeredDate", header: "登録日", sortKey: "registeredDate", className: "w-32 whitespace-nowrap", render: (shop) => shop.registeredDate },
   ];
 
-  const shopActions = (shop: AdminShop, className?: string) => (
+  const shopActions = (shop: AdminShop, size: "sm" | "md" = "sm") => (
     <>
       {shop.status === "active" ? (
-        <Button variant="quiet" size="sm" className={className} onClick={() => runSingle("suspend", shop.id, "停止")}>停止</Button>
+        <Button variant="quiet" size={size} onClick={() => runSingle("suspend", shop.id, "停止")} aria-label={`${shop.name}を停止`}>停止</Button>
       ) : (
-        <Button variant="quiet" size="sm" className={className} onClick={() => runSingle("restore", shop.id, "復活")}>復活</Button>
+        <Button variant="quiet" size={size} onClick={() => runSingle("restore", shop.id, "復活")} aria-label={`${shop.name}を復活`}>復活</Button>
       )}
-      <Button variant="quiet" size="sm" className={`${DANGER} ${className ?? ""}`} onClick={() => runSingle("delete", shop.id, "削除")}>
+      <Button variant="quiet" size={size} className={DANGER} onClick={() => runSingle("delete", shop.id, "削除")} aria-label={`${shop.name}を削除`}>
         削除
       </Button>
     </>
@@ -263,136 +265,178 @@ function AdminShopsContent() {
   }
 
   return (
-    <AdminLayout>
-      <AdminPageHeader
-        eyebrow="Shops"
-        title="店舗管理"
-        actions={<ExportActions onCsv={exportCsv} onJson={exportJson} loading={isExporting} />}
-      />
+    // 画面いっぱいの高さに収め、スクロールは表の本体だけにする（ユーザー管理と同じ形）
+    <AdminLayout withBottomPadding={false}>
+      <div className="flex h-[100dvh] flex-col">
+        <div className="shrink-0">
+          <AdminPageHeader
+            eyebrow="Shops"
+            title="店舗管理"
+            actions={<ExportActions compact onCsv={exportCsv} onJson={exportJson} loading={isExporting} />}
+          />
+        </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-8 pb-20">
-        <ReviewStats
-          items={[
-            { label: "総店舗数", value: stats.total },
-            { label: "稼働中", value: stats.active, tone: "good" },
-            { label: "停止中", value: stats.suspended, tone: "warning" },
-          ]}
-        />
+        <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-4 pb-24 pt-3 sm:pb-4 sm:pt-4">
+          {fetchError && (
+            <div role="alert" className="mb-3 flex shrink-0 items-center justify-between rounded-card bg-status-critical-bg p-4 text-status-critical-fg ring-1 ring-status-critical-line">
+              <p className="text-sm">{fetchError}</p>
+              <Button variant="quiet" size="sm" onClick={loadShops}>再試行</Button>
+            </div>
+          )}
 
-        {fetchError && (
-          <div role="alert" className="mb-4 flex items-center justify-between rounded-card bg-status-critical-bg p-4 text-status-critical-fg ring-1 ring-status-critical-line">
-            <p className="text-sm">{fetchError}</p>
-            <Button variant="quiet" size="sm" onClick={loadShops}>再試行</Button>
-          </div>
-        )}
+          {fetchLoading && <CenteredLoading padding="py-16" className="text-nicchyo-ink/40" />}
 
-        {fetchLoading && <CenteredLoading padding="py-16" className="text-nicchyo-ink/40" />}
-
-        {!fetchLoading && !fetchError && (
-          <>
-            <ReviewToolbar
-              ref={searchInputRef}
-              filters={[
-                { key: "all", label: "すべて", count: stats.total },
-                { key: "active", label: "稼働中", count: stats.active },
-                { key: "suspended", label: "停止中", count: stats.suspended },
-              ]}
-              value={filter}
-              onChange={setFilter}
-              search={{ value: searchQuery, onChange: setSearchQuery, placeholder: "店舗名・オーナーで検索..." }}
-            >
-              <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
-                <span className="text-xs font-medium text-nicchyo-ink/55">代表者・QR</span>
-                {CLAIM_FILTERS.map((f) => (
-                  <FilterChip size="sm" key={f.key} active={claimFilter === f.key} onClick={() => setClaimFilter(f.key)}>
-                    {f.label}
-                  </FilterChip>
-                ))}
-              </div>
-              {uniqueCategories.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
-                  <span className="text-xs font-medium text-nicchyo-ink/55">カテゴリー</span>
-                  {["all", ...uniqueCategories].map((cat) => (
-                    <FilterChip size="sm" key={cat} active={categoryFilter === cat} onClick={() => setCategoryFilter(cat)}>
-                      {cat === "all" ? "すべて" : `${cat} (${categoryStats[cat] ?? 0})`}
+          {!fetchLoading && !fetchError && (
+            <>
+              {/* 状態の絞り込み（件数つき）と検索を一行に並べる。PC では一行に収まり、スマホでは検索が次の段に回る */}
+              <div className="mb-2 flex shrink-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                <div role="group" aria-label="状態で絞り込む" className="flex min-w-0 flex-wrap gap-2">
+                  {[
+                    { key: "all", label: "すべて", count: stats.total },
+                    { key: "active", label: "稼働中", count: stats.active },
+                    { key: "suspended", label: "停止中", count: stats.suspended },
+                  ].map((f) => (
+                    <FilterChip key={f.key} active={f.key === filter} onClick={() => setFilter(f.key as typeof filter)}>
+                      {f.label}
+                      <span className="ml-1 tabular-nums">({f.count})</span>
                     </FilterChip>
                   ))}
                 </div>
-              )}
-            </ReviewToolbar>
-
-            <BulkActionBar count={selection.selectedIds.length} onClear={selection.clear}>
-              <Button variant="quiet" size="sm" onClick={handleIssueQr} disabled={issuing || bulkLoading}>
-                {issuing ? "発行しています…" : "QRを発行"}
-              </Button>
-              <Button variant="quiet" size="sm" onClick={() => handleBulk("restore", "復活")} disabled={bulkLoading}>一括復活</Button>
-              <Button variant="quiet" size="sm" onClick={() => handleBulk("suspend", "停止")} disabled={bulkLoading}>一括停止</Button>
-              <Button variant="quiet" size="sm" className={DANGER} onClick={() => handleBulk("delete", "削除")} disabled={bulkLoading}>
-                一括削除
-              </Button>
-            </BulkActionBar>
-
-            {issueResults && issueResults.some((r) => r.status === "ok") && (
-              <div className="mb-4">
-                <IssuedQrPanel
-                  onClose={() => setIssueResults(null)}
-                  notice={
-                    issueResults.some((r) => r.status !== "ok")
-                      ? `発行できなかった店舗: ${issueResults.filter((r) => r.status !== "ok").map((r) => r.shopName ?? r.vendorId).join("、")}`
-                      : undefined
-                  }
-                >
-                  <QrSheet results={issueResults} />
-                </IssuedQrPanel>
+                <div className="relative w-full shrink-0 lg:w-80">
+                  <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-nicchyo-ink/40" />
+                  <input
+                    ref={searchInputRef}
+                    type="search"
+                    aria-label="店舗名・オーナーで検索"
+                    placeholder="店舗名・オーナーで検索... (/)"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-11 w-full rounded-btn border border-line bg-white pl-9 pr-3 text-base text-nicchyo-ink placeholder:text-nicchyo-ink/40 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 sm:h-10 sm:text-sm"
+                  />
+                </div>
               </div>
-            )}
 
-            {sortedData.length === 0 ? (
-              <EmptyState icon="🏪" title="店舗が見つかりません" description="検索条件に一致する店舗がありません。" />
-            ) : (
-              <AdminDataTable
-                rows={sortedData}
-                getRowId={(shop) => shop.id}
-                columns={columns}
-                sort={{ key: sortKey, direction: sortDirection, onSort: handleSort }}
-                selection={selection}
-                selectionLabel={(shop) => `${shop.name}を選択`}
-                selectAllLabel="表示中の店舗をすべて選択"
-                actions={(shop) => shopActions(shop)}
-                mobileCard={(shop, index) => (
-                  <Surface padding="sm">
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2">
+              {/* 代表者・QR と カテゴリーの絞り込み */}
+              <div className="mb-3 flex shrink-0 flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-nicchyo-ink/55">代表者・QR</span>
+                  {CLAIM_FILTERS.map((f) => (
+                    <FilterChip size="sm" key={f.key} active={claimFilter === f.key} onClick={() => setClaimFilter(f.key)}>
+                      {f.label}
+                    </FilterChip>
+                  ))}
+                </div>
+                {uniqueCategories.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium text-nicchyo-ink/55">カテゴリー</span>
+                    {["all", ...uniqueCategories].map((cat) => (
+                      <FilterChip size="sm" key={cat} active={categoryFilter === cat} onClick={() => setCategoryFilter(cat)}>
+                        {cat === "all" ? "すべて" : `${cat} (${categoryStats[cat] ?? 0})`}
+                      </FilterChip>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 text-sm text-nicchyo-ink/70 sm:hidden">
+                <label className="flex min-h-11 items-center gap-2">
+                  <input type="checkbox" checked={selection.allSelected} onChange={selection.toggleAll} disabled={sortedData.length === 0} className="h-5 w-5 accent-amber-600" />
+                  表示中をすべて選択
+                </label>
+                <span aria-live="polite">{sortedData.length}件</span>
+                <div className="flex w-full items-center gap-2">
+                  <label htmlFor="mobile-shop-sort" className="shrink-0">並び順</label>
+                  <select id="mobile-shop-sort" value={sortKey ?? "name"} onChange={(event) => handleSort(event.target.value)} className="h-11 min-w-0 flex-1 rounded-btn border border-line bg-white px-3 text-sm text-nicchyo-ink">
+                    {columns.filter((column) => column.sortKey).map((column) => <option key={column.key} value={column.sortKey}>{column.header}</option>)}
+                  </select>
+                  <Button variant="quiet" className="shrink-0 px-3" onClick={() => handleSort(sortKey ?? "name")} aria-label="並び順を反転">
+                    {sortDirection === "asc" ? "昇順 ↑" : "降順 ↓"}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="shrink-0">
+                <BulkActionBar count={selection.selectedIds.length} unit="件" onClear={selection.clear}>
+                  <Button variant="quiet" size="sm" onClick={handleIssueQr} disabled={issuing || bulkLoading}>
+                    {issuing ? "発行しています…" : "QRを発行"}
+                  </Button>
+                  <Button variant="quiet" size="sm" onClick={() => handleBulk("restore", "復活")} disabled={bulkLoading}>一括復活</Button>
+                  <Button variant="quiet" size="sm" onClick={() => handleBulk("suspend", "停止")} disabled={bulkLoading}>一括停止</Button>
+                  <Button variant="quiet" size="sm" className={DANGER} onClick={() => handleBulk("delete", "削除")} disabled={bulkLoading}>
+                    一括削除
+                  </Button>
+                </BulkActionBar>
+              </div>
+
+              {issueResults && issueResults.some((r) => r.status === "ok") && (
+                <div className="mb-3 max-h-[40dvh] shrink overflow-y-auto">
+                  <IssuedQrPanel
+                    onClose={() => setIssueResults(null)}
+                    notice={
+                      issueResults.some((r) => r.status !== "ok")
+                        ? `発行できなかった店舗: ${issueResults.filter((r) => r.status !== "ok").map((r) => r.shopName ?? r.vendorId).join("、")}`
+                        : undefined
+                    }
+                  >
+                    <QrSheet results={issueResults} />
+                  </IssuedQrPanel>
+                </div>
+              )}
+
+              {sortedData.length === 0 ? (
+                <EmptyState icon="🏪" title="店舗が見つかりません" description="検索条件に一致する店舗がありません。" />
+              ) : (
+                <AdminDataTable
+                  rows={sortedData}
+                  getRowId={(shop) => shop.id}
+                  columns={columns}
+                  sort={{ key: sortKey, direction: sortDirection, onSort: handleSort }}
+                  selection={selection}
+                  selectionLabel={(shop) => `${shop.name}を選択`}
+                  selectAllLabel="表示中の店舗をすべて選択"
+                  virtualize
+                  fillHeight
+                  actions={(shop) => shopActions(shop)}
+                  mobileLayout="list"
+                  mobileCard={(shop, index) => (
+                    <div className="flex items-start gap-2 px-3 py-3">
+                      <label className="flex h-11 w-11 shrink-0 items-center justify-center">
                         <input
                           type="checkbox"
                           aria-label={`${shop.name}を選択`}
                           checked={selection.isSelected(shop.id)}
                           onChange={() => selection.toggle(shop.id, index)}
-                          className="mt-1 h-4 w-4 rounded border-line accent-amber-600"
+                          className="h-5 w-5 accent-amber-600"
                         />
-                        <div>
-                          <Link href={`/admin/shops/${shop.id}`} className="font-medium text-nicchyo-ink hover:underline">
-                            {shop.name}
-                          </Link>
-                          <div className="text-xs text-nicchyo-ink/55">{shop.category}</div>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            <ListingStatusBadge status={shop.listingStatus} />
-                            {claimStates.has(shop.id) && <ClaimStateBadge state={claimStates.get(shop.id)!} />}
+                      </label>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <Link href={`/admin/shops/${shop.id}`} className="break-words font-semibold text-nicchyo-ink hover:underline">
+                              {shop.name}
+                            </Link>
+                            <p className="break-all text-sm text-nicchyo-ink/55">{shop.email}</p>
                           </div>
+                          <StatusBadge status={shop.status} />
                         </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span className="text-xs text-nicchyo-ink/70">{shop.category}</span>
+                          <ListingStatusBadge status={shop.listingStatus} />
+                          {claimStates.has(shop.id) && <ClaimStateBadge state={claimStates.get(shop.id)!} />}
+                        </div>
+                        <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                          <div><dt className="text-nicchyo-ink/55">オーナー</dt><dd className="mt-0.5 break-words text-nicchyo-ink">{shop.owner}</dd></div>
+                          <div><dt className="text-nicchyo-ink/55">登録日</dt><dd className="mt-0.5 break-words text-nicchyo-ink">{shop.registeredDate}</dd></div>
+                        </dl>
+                        <div className="mt-3 flex flex-wrap gap-2">{shopActions(shop, "md")}</div>
                       </div>
-                      <StatusBadge status={shop.status} />
                     </div>
-                    <div className="mb-3 text-xs text-nicchyo-ink/55">
-                      オーナー: {shop.owner}<span className="mx-2">·</span>登録: {shop.registeredDate}
-                    </div>
-                    <div className="flex gap-2">{shopActions(shop, "flex-1")}</div>
-                  </Surface>
-                )}
-              />
-            )}
-          </>
-        )}
+                  )}
+                />
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       <ShortcutHelpLauncher shortcuts={shortcuts} open={showShortcutHelp} onOpenChange={setShowShortcutHelp} />
