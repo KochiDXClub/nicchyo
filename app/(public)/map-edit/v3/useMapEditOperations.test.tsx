@@ -249,3 +249,29 @@ describe("useMapEditOperations.setSlotChome", () => {
     expect(hook.result.current.shops[0]).toMatchObject({ chome: "二丁目", chomeLocked: false });
   });
 });
+
+describe("useMapEditOperations.addSlot", () => {
+  it("道の上に、空いている店番で空きの出店場所を1つ追加し、取り消せる", () => {
+    const { hook } = setup([slot(1, 5, { chome: "一丁目" })]);
+    act(() => {
+      expect(hook.result.current.ops.addSlot(road)).toBe(true);
+    });
+    const added = hook.result.current.shops.find((s) => s.locationId.startsWith("new-"));
+    expect(added).toMatchObject({ roadId: road.id, roadSide: "left", position: 2 });
+    expect(added?.vendorId).toBeUndefined();
+    act(() => hook.result.current.ops.undo());
+    expect(hook.result.current.shops).toHaveLength(1);
+  });
+
+  it("追加した空きの出店場所は、削除できる", () => {
+    const { hook } = setup([]);
+    act(() => {
+      hook.result.current.ops.addSlot(road);
+    });
+    const added = hook.result.current.shops[0];
+    act(() => {
+      expect(hook.result.current.ops.deleteSlot(added.locationId)).toBe(true);
+    });
+    expect(hook.result.current.shops).toHaveLength(0);
+  });
+});

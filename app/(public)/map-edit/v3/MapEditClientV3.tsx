@@ -524,6 +524,7 @@ export default function MapEditClientV3() {
                 <RoadDetailPanel
                   road={selectedRoad}
                   markets={data.markets}
+                  onAddPlace={() => ops.addSlot(selectedRoad)}
                   onMarketChange={(marketId) => ops.patchRoad(selectedRoad.id, { marketId }, "の所属する市を変更")}
                   onNameChange={(value) =>
                     ops.patchRoad(selectedRoad.id, { name: value }, "の名前を変更", { coalesceKey: `road-name:${selectedRoad.id}` })
