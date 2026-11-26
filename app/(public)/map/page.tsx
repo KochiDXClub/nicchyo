@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { createAnonClient } from "@/lib/supabase/anonClient";
 import { fetchMarketPeople } from "@/lib/map/illustrations/people.server";
 import { fetchPublicMarkets } from "@/lib/market/publicMarkets.server";
+import { loadPublicMarketCalendar } from "@/lib/market/calendar.server";
 import { createClient } from '@/utils/supabase/server';
 import MapPageClient from './MapPageClient';
 import MapLoadingOverlay from '../../components/MapLoadingOverlay';
@@ -51,6 +52,8 @@ export default async function MapPage({ searchParams }: {
   const featureFlagsPromise = fetchMapFeatureFlags();
   const mapViewSettingsPromise = fetchMapViewSettings();
   const marketsPromise = fetchPublicMarkets();
+  // 開催ステータスの帯は初回の HTML に含めたいので、取得をサーバーで済ませて渡す（失敗時は null でクライアント取得に戻す）
+  const calendarPromise = loadPublicMarketCalendar().catch(() => null);
   const peoplePromise = marketsPromise.then((markets) => fetchMarketPeople(markets)).catch(() => []);
   const selectionPromise = Promise.all([marketsPromise, searchParams]).then(([markets, query]) => {
     const sunday = markets.find((market) => market.slug === "nichiyo");
@@ -116,12 +119,13 @@ export default async function MapPage({ searchParams }: {
     }
   }
 
-  const [featureFlags, mapViewSettings, legacyIdentities, selection, people] = await Promise.all([
+  const [featureFlags, mapViewSettings, legacyIdentities, selection, people, marketCalendar] = await Promise.all([
     featureFlagsPromise,
     mapViewSettingsPromise,
     readPublicLegacyIdentities().catch(() => ({ enabled: true, aliases: {} })),
     selectionPromise,
     peoplePromise,
+    calendarPromise,
   ]);
 
   return (
@@ -142,6 +146,7 @@ export default async function MapPage({ searchParams }: {
         people={people}
         mapRoute={{ ...mapRoute, markets: selection.markets.map(({ id, name }) => ({ id, name })) }}
         initialMarketId={selection.initial?.id}
+        initialMarketCalendar={marketCalendar}
         sundayMarketId={selection.sunday?.id}
         marketRequested={!!selection.requested}
         featureFlags={featureFlags}
