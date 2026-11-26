@@ -228,6 +228,12 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
 
   return (
     <>
+      {rail && (
+        // 全幅のヘッダー。サイドバーを開いても閉じても、ここにロゴが常に見える（モバイルの開閉ボタンの右に置く）
+        <header className="fixed inset-x-0 top-0 z-[10000] flex h-14 items-center border-b border-line bg-white pl-16 pr-4 lg:pl-4">
+          <NicchyoLogoLink href={homeHref} label={homeLabel} onClick={onClose} />
+        </header>
+      )}
       {/* モバイル用の開閉ボタン */}
       {showMobileToggle && (
         <button
@@ -253,13 +259,18 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
       )}
 
       <aside
-        className={`group/rail fixed inset-y-0 left-0 z-[9999] flex ${
+        className={`group/rail fixed ${rail ? "top-14 bottom-0" : "inset-y-0"} left-0 z-[9999] flex ${
           collapsible ? RAIL.aside : "w-[248px]"
         } flex-col border-r border-line bg-white motion-safe:transition-[transform,visibility,width,box-shadow] motion-safe:duration-200 ease-out lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "invisible -translate-x-full lg:visible"
         }`}
       >
-        {/* ヘッダー */}
+        {/* ヘッダー：PC のレールでは、ロゴは上の全幅ヘッダーに出し、ここはこの列の見出しだけ */}
+        {rail ? (
+          <div className={`flex h-14 shrink-0 items-center border-b border-line px-4 ${RAIL.header}`}>
+            <span className={`min-w-0 flex-1 truncate text-xs text-nicchyo-ink/70 ${RAIL.itemLabel}`}>{subtitle}</span>
+          </div>
+        ) : (
         <div className={`flex h-14 shrink-0 items-center gap-2.5 border-b border-line px-4 ${collapsible ? RAIL.header : ""}`}>
           {collapsible ? (
             // レールでは1つのリンクにまとめる（ホームのアイコン⇄ロゴを、展開に合わせて切り替える）
@@ -296,6 +307,8 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
             </button>
           )}
         </div>
+
+        )}
 
         {/* ナビゲーション */}
         <nav
@@ -397,7 +410,7 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
       {subPanel && (
         <aside
           aria-label={`${subPanel.label}のサブメニュー`}
-          className="fixed inset-y-0 z-[9998] hidden w-56 flex-col border-r border-line bg-white lg:left-14 lg:flex"
+          className="fixed top-14 bottom-0 z-[9998] hidden w-56 flex-col border-r border-line bg-white lg:left-14 lg:flex"
         >
           <div className="flex h-14 shrink-0 items-center border-b border-line px-4">
             <span className="truncate text-[13px] font-semibold text-nicchyo-ink">{subPanel.label}</span>

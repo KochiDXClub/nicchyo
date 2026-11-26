@@ -40,7 +40,7 @@ export const AdminLayout = React.memo(function AdminLayout({
 
   return (
     <div
-      className={`min-h-screen bg-nicchyo-base ${
+      className={`min-h-screen bg-nicchyo-base pt-14 ${
         hasSubPanel ? CONSOLE_SIDEBAR_RAIL_WITH_PANEL_OFFSET_CLASS : CONSOLE_SIDEBAR_RAIL_OFFSET_CLASS
       }`}
     >
