@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { DEFAULT_MARKET_MARKER_COLOR, resolveMarkerColor } from "@/lib/market/markerColor";
+import MarketAreasEditor from "./components/MarketAreasEditor";
 
 type Market = {
   id: string;
@@ -22,6 +23,8 @@ export default function AdminMarketsPage() {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** 丁目を編集する市（未選択なら丁目の欄は出さない） */
+  const [areaMarketId, setAreaMarketId] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -148,6 +151,25 @@ export default function AdminMarketsPage() {
               </button>
             )}
           </div>
+        </section>
+        <section aria-labelledby="market-areas" className="space-y-3 rounded-lg border bg-white p-4">
+          <h2 id="market-areas" className="text-lg font-bold">丁目（区画のエリア）</h2>
+          <p className="text-sm text-nicchyo-ink/70">市ごとの丁目を登録します。マップ編集で区画の丁目を選ぶときの選択肢になります。</p>
+          <label className="block text-sm font-bold">
+            丁目を編集する市
+            <select className="mt-1 w-full rounded-lg border px-3 py-2" value={areaMarketId} onChange={(e) => setAreaMarketId(e.target.value)}>
+              <option value="">選んでください</option>
+              {markets.map((market) => (
+                <option key={market.id} value={market.id}>{market.name}</option>
+              ))}
+            </select>
+          </label>
+          {areaMarketId && (
+            <MarketAreasEditor
+              marketId={areaMarketId}
+              marketName={markets.find((market) => market.id === areaMarketId)?.name ?? ""}
+            />
+          )}
         </section>
       </main>
     </AdminLayout>

@@ -7,6 +7,7 @@ import { useEffect, useCallback, useId, useRef, useState, Suspense } from "react
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3,
+  Building2,
   CalendarDays,
   CircleHelp,
   Compass,
@@ -123,6 +124,11 @@ const adminMenuItems: SheetItem[] = [
   { label: "コンテンツ管理", href: "/admin/content", icon: FileText },
 ];
 
+// ─── 高知市の入口 ─────────────────────────────────────────────────────────────
+// /city は city_official と admin だけが入れる（layout・proxy と同じ条件）。
+const CITY_PATH = "/city";
+const cityNavItem: NavItem = { name: "高知市", href: CITY_PATH, icon: Building2 };
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 type NavigationBarProps = {
   activeHref?: string;
@@ -224,8 +230,11 @@ function NavigationBarInner({
   const adminNavItems: NavItem[] = permissions.isAdmin
     ? [{ name: "管理", href: "/admin/dashboard", icon: Settings }]
     : [];
+  // 高知市の入口は city_official と admin に出す（/city の入場条件と同じ）
+  const showCityEntry = (permissions.isCityOfficial || permissions.isAdmin) && isLinkVisible(CITY_PATH);
   const rightNavItems = [
     ...(storyNavItem ? [storyNavItem] : []),
+    ...(showCityEntry ? [cityNavItem] : []),
     ...adminNavItems.filter((item) => isLinkVisible(item.href)),
   ];
   // 公開設定はパス単位なので、/map?guide=menu のようなクエリは外して判定する
@@ -395,7 +404,7 @@ function NavigationBarInner({
         className={`navigation-bar ${position} bottom-0 border-t left-0 right-0 z-[9997] text-sm leading-none shadow-sm transition-colors duration-300 ${
           isCloseUxActive
             ? "cursor-pointer border-green-500 bg-green-500"
-            : "border-slate-200/60 bg-white/90 backdrop-blur-md"
+            : "border-line bg-white/90 backdrop-blur-md"
         } ${
           isMapNav || topBackBar
             ? "lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:w-auto lg:rounded-full lg:border lg:shadow-float"
@@ -413,7 +422,7 @@ function NavigationBarInner({
               <button
                 type="button"
                 onClick={onConsultClick}
-                className="group flex h-full flex-1 flex-col items-center justify-center gap-1 text-slate-400 transition-colors duration-200 hover:text-slate-600 lg:flex-none lg:flex-row lg:gap-2 lg:rounded-full lg:px-4 lg:hover:bg-nicchyo-ink/5"
+                className="group flex h-full flex-1 flex-col items-center justify-center gap-1 text-nicchyo-ink/55 transition-colors duration-200 hover:text-nicchyo-ink/70 lg:flex-none lg:flex-row lg:gap-2 lg:rounded-full lg:px-4 lg:hover:bg-nicchyo-ink/5"
               >
                 <consultItem.icon
                   className="h-[22px] w-[22px] transition-transform duration-200 group-hover:scale-105 group-active:scale-95"

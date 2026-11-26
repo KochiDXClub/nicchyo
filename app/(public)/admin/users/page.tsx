@@ -13,14 +13,13 @@ import {
   EmptyState,
   ErrorBoundary,
   ExportActions,
-  ReviewStats,
-  ReviewToolbar,
+  FilterChip,
   ShortcutHelpLauncher,
   StatusBadge,
   type DataColumn,
 } from "@/components/admin";
-import { Plus } from "lucide-react";
-import { Badge, Button, Surface } from "@/components/ui";
+import { Plus, Search } from "lucide-react";
+import { Badge, Button } from "@/components/ui";
 import { CenteredLoading } from "@/components/ui/loading-spinner";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { useAdminUsers, type AdminUser } from "./useAdminUsers";
@@ -136,49 +135,58 @@ function AdminUsersContent() {
   );
 
   return (
-    <AdminLayout>
-      <AdminPageHeader
-        eyebrow="User Admin"
-        title="ユーザー管理"
-        description="アカウントの検索・招待・権限の管理"
-        actions={
-          <>
-            <Button className="flex-1 px-4 sm:flex-none" onClick={u.handleCreateUser} aria-label="新規ユーザーを追加">
-              <Plus size={18} aria-hidden="true" />
-              ユーザーを追加
-            </Button>
-            <ExportActions compact onCsv={u.exportCsv} onJson={u.exportJson} loading={u.isExporting} />
-          </>
-        }
-      />
-
-      <div className="mx-auto max-w-7xl px-4 py-5 pb-20 sm:py-8">
-        <ReviewStats
-          compact
-          items={[
-            { label: "総ユーザー数", value: u.stats.total },
-            { label: "管理者", value: u.stats.admins, tone: "critical" },
-            { label: "出店者", value: u.stats.vendors, tone: "info" },
-            { label: "一般ユーザー", value: u.stats.users, tone: "muted" },
-            { label: "停止中", value: u.stats.suspended, tone: "warning" },
-          ]}
+    // 画面いっぱいの高さに収め、スクロールは表の本体だけにする（Supabase の Users と同じ形）
+    <AdminLayout withBottomPadding={false}>
+      <div className="flex h-[100dvh] flex-col">
+      <div className="shrink-0">
+        <AdminPageHeader
+          eyebrow="User Admin"
+          title="ユーザー管理"
+          actions={
+            <>
+              <Button className="flex-1 px-4 sm:flex-none" onClick={u.handleCreateUser} aria-label="新規ユーザーを追加">
+                <Plus size={18} aria-hidden="true" />
+                ユーザーを追加
+              </Button>
+              <ExportActions compact onCsv={u.exportCsv} onJson={u.exportJson} loading={u.isExporting} />
+            </>
+          }
         />
+      </div>
 
-        <ReviewToolbar
-          ref={u.searchInputRef}
-          filters={[
-            { key: "all", label: "すべて", count: u.stats.total },
-            { key: "admin", label: "管理者", count: u.stats.admins },
-            { key: "vendor", label: "出店者", count: u.stats.vendors },
-            { key: "general_user", label: "一般", count: u.stats.users },
-            { key: "suspended", label: "停止中", count: u.stats.suspended },
-          ]}
-          value={u.filter}
-          onChange={u.setFilter}
-          search={{ value: u.searchQuery, onChange: u.setSearchQuery, placeholder: "名前・メールアドレスで検索... (/)" }}
-        />
+      <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-4 pb-24 pt-3 sm:pb-4 sm:pt-4">
+        {/* 件数・検索・絞り込みを、できるだけ少ない段で収める */}
+        {/* 絞り込み（左）と検索（右）を一行に並べる。PC では一行に収まり、スマホでは検索が次の段に回る */}
+        <div className="mb-3 flex shrink-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div role="group" aria-label="状態で絞り込む" className="flex min-w-0 flex-wrap gap-2">
+            {[
+              { key: "all", label: "すべて", count: u.stats.total },
+              { key: "admin", label: "管理者", count: u.stats.admins },
+              { key: "vendor", label: "出店者", count: u.stats.vendors },
+              { key: "general_user", label: "一般", count: u.stats.users },
+              { key: "suspended", label: "停止中", count: u.stats.suspended },
+            ].map((f) => (
+              <FilterChip key={f.key} active={f.key === u.filter} onClick={() => u.setFilter(f.key as typeof u.filter)}>
+                {f.label}
+                <span className="ml-1 tabular-nums">({f.count})</span>
+              </FilterChip>
+            ))}
+          </div>
+          <div className="relative w-full shrink-0 lg:w-80">
+            <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-nicchyo-ink/40" />
+            <input
+              ref={u.searchInputRef}
+              type="search"
+              aria-label="名前・メールアドレスで検索"
+              placeholder="名前・メールアドレスで検索... (/)"
+              value={u.searchQuery}
+              onChange={(e) => u.setSearchQuery(e.target.value)}
+              className="h-11 w-full rounded-btn border border-line bg-white pl-9 pr-3 text-base text-nicchyo-ink placeholder:text-nicchyo-ink/40 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 sm:h-10 sm:text-sm"
+            />
+          </div>
+        </div>
 
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-nicchyo-ink/70 sm:hidden">
+        <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 text-sm text-nicchyo-ink/70 sm:hidden">
           <label className="flex min-h-11 items-center gap-2">
             <input type="checkbox" checked={u.selection.allSelected} onChange={u.selection.toggleAll} disabled={u.sortedData.length === 0} className="h-5 w-5 accent-amber-600" />
             表示中をすべて選択
@@ -195,6 +203,7 @@ function AdminUsersContent() {
           </div>
         </div>
 
+        <div className="shrink-0">
         <BulkActionBar count={u.selection.selectedIds.length} unit="人" onClear={u.selection.clear}>
           <Button variant="quiet" size="sm" onClick={() => u.handleBulk("restore", "アクティブ化")} disabled={u.bulkLoading}>
             一括アクティブ化
@@ -206,6 +215,7 @@ function AdminUsersContent() {
             一括削除
           </Button>
         </BulkActionBar>
+        </div>
 
         {u.isLoadingUsers ? (
           <CenteredLoading padding="py-16" className="text-nicchyo-ink/40" />
@@ -237,32 +247,33 @@ function AdminUsersContent() {
             selectionLabel={(user) => `ユーザー「${user.name}」を選択`}
             selectAllLabel="表示中のユーザーをすべて選択"
             virtualize
+            fillHeight
             actions={(user) => renderUserActions(user)}
+            mobileLayout="list"
             mobileCard={(user, index) => (
-              <Surface padding="sm">
-                <div className="flex items-start gap-2">
-                  <label className="flex h-11 w-11 shrink-0 items-center justify-center">
-                    <input type="checkbox" aria-label={`ユーザー「${user.name}」を選択`} checked={u.selection.isSelected(user.id)} onChange={() => u.selection.toggle(user.id, index)} className="h-5 w-5 accent-amber-600" />
-                  </label>
-                  <div className="min-w-0 flex-1 py-1">
-                    <p className="break-words font-semibold text-nicchyo-ink">{user.name}</p>
-                    <p className="break-all text-sm text-nicchyo-ink/55">{user.email}</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABEL[user.role]}</Badge>
-                      {user.status === "suspended" && <StatusBadge status="suspended" customLabel="停止中" />}
-                    </div>
-                    {user.vendorId && <p className="mt-1 text-xs text-nicchyo-ink/55">店舗ID: {user.vendorId}</p>}
+              <div className="flex items-start gap-2 px-3 py-3">
+                <label className="flex h-11 w-11 shrink-0 items-center justify-center">
+                  <input type="checkbox" aria-label={`ユーザー「${user.name}」を選択`} checked={u.selection.isSelected(user.id)} onChange={() => u.selection.toggle(user.id, index)} className="h-5 w-5 accent-amber-600" />
+                </label>
+                <div className="min-w-0 flex-1">
+                  <p className="break-words font-semibold text-nicchyo-ink">{user.name}</p>
+                  <p className="break-all text-sm text-nicchyo-ink/55">{user.email}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABEL[user.role]}</Badge>
+                    {user.status === "suspended" && <StatusBadge status="suspended" customLabel="停止中" />}
                   </div>
+                  {user.vendorId && <p className="mt-1 text-xs text-nicchyo-ink/55">店舗ID: {user.vendorId}</p>}
+                  <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                    <div><dt className="text-nicchyo-ink/55">登録日</dt><dd className="mt-0.5 break-words text-nicchyo-ink">{user.registeredDate}</dd></div>
+                    <div><dt className="text-nicchyo-ink/55">最終ログイン</dt><dd className="mt-0.5 break-words text-nicchyo-ink">{user.lastLogin}</dd></div>
+                  </dl>
+                  <div className="mt-3 flex flex-wrap gap-2">{renderUserActions(user, "md")}</div>
                 </div>
-                <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 text-xs">
-                  <div><dt className="text-nicchyo-ink/55">登録日</dt><dd className="mt-1 break-words text-nicchyo-ink">{user.registeredDate}</dd></div>
-                  <div><dt className="text-nicchyo-ink/55">最終ログイン</dt><dd className="mt-1 break-words text-nicchyo-ink">{user.lastLogin}</dd></div>
-                </dl>
-                <div className="mt-3 flex flex-wrap gap-2">{renderUserActions(user, "md")}</div>
-              </Surface>
+              </div>
             )}
           />
         )}
+      </div>
       </div>
 
       {/* 権限変更モーダル */}

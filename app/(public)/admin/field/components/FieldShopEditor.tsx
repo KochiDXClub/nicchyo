@@ -26,6 +26,7 @@ import { isEndAfterStart } from "@/lib/vendor/businessHours";
 import { CHOMES, type ChomeId } from "@/lib/map/chomes";
 import { FieldMarketPlaceCard } from "./FieldMarketPlaceCard";
 import { LocationPicker, type FieldLocation, type LatLng } from "./LocationPicker";
+import { CONSOLE_SIDEBAR_PANEL_LEFT_CLASS } from "@/components/navigation/ConsoleSidebar";
 
 type Category = { id: string; name: string };
 
@@ -563,7 +564,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         </>}
       </Card>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 p-3 backdrop-blur lg:left-[248px]">
+      <div className={`fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 p-3 backdrop-blur ${CONSOLE_SIDEBAR_PANEL_LEFT_CLASS}`}>
         <div className="mx-auto flex max-w-2xl gap-2">
           <Link href="/admin/field" className={`${buttonClass} border border-line bg-white text-nicchyo-ink/70`}>
             一覧へ

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   ADMIN_NAV_GROUPS,
+  getAdminSubPanelGroup,
   getAllAdminNavHrefs,
   getAllAdminNavItems,
   getVisibleAdminNav,
@@ -90,7 +91,7 @@ describe("adminNav", () => {
 
   it("モデレーターには担当グループだけが見える", () => {
     const groups = getVisibleAdminNav(moderatorPermissions);
-    expect(groups.map((group) => group.id)).toEqual(["home", "inbox"]);
+    expect(groups.map((group) => group.id)).toEqual(["home"]);
     // 空のグループが見出しだけ残らない
     for (const group of groups) {
       expect(group.items.length).toBeGreaterThan(0);
@@ -103,15 +104,38 @@ describe("adminNav", () => {
     expect(isAdminNavItemActive("/admin/dashboard", "/admin/settings")).toBe(false);
   });
 
-  it("「対応する」は受信トレイ・お知らせ・投稿の確認の3つで、通報と問い合わせは受信トレイの中にある", () => {
-    const inbox = ADMIN_NAV_GROUPS.find((group) => group.id === "inbox")!;
-    expect(inbox.items.map((item) => item.label)).toEqual(["受信トレイ", "お知らせ", "投稿の確認"]);
-    expect(inbox.items[0].relatedHrefs).toEqual(["/admin/reports", "/admin/inquiries", "/admin/vendor-inquiries"]);
+  it("受信トレイ・お知らせ・投稿の確認は、ホームのサブにある（送信のお知らせは管理者だけ）", () => {
+    const home = ADMIN_NAV_GROUPS.find((group) => group.id === "home")!;
+    expect(home.items.map((item) => item.label)).toEqual([
+      "ダッシュボード",
+      "日曜市カレンダー",
+      "出店予定管理",
+      "旧店舗番号の確認",
+      "受信トレイ",
+      "お知らせ",
+      "投稿の確認",
+    ]);
+    const inbox = home.items.find((item) => item.label === "受信トレイ")!;
+    expect(inbox.relatedHrefs).toEqual(["/admin/reports", "/admin/inquiries", "/admin/vendor-inquiries"]);
     // 送信（お知らせ）は管理者だけ
-    expect(getVisibleAdminNav(moderatorPermissions).find((g) => g.id === "inbox")!.items.map((i) => i.label)).toEqual([
+    expect(getVisibleAdminNav(moderatorPermissions)[0].items.map((i) => i.label)).toEqual([
+      "ダッシュボード",
       "受信トレイ",
       "投稿の確認",
     ]);
+  });
+
+  it("市の管理はデータ管理のサブにある", () => {
+    const data = ADMIN_NAV_GROUPS.find((group) => group.id === "data")!;
+    expect(data.items.map((item) => item.href)).toContain("/admin/markets");
+  });
+
+  it("サブが2件以上のメインだけ、サブ一覧を出す（マップ編集は出さない）", () => {
+    expect(getAdminSubPanelGroup("/admin/reports", adminPermissions)?.id).toBe("home");
+    expect(getAdminSubPanelGroup("/admin/analytics", adminPermissions)?.id).toBe("insight");
+    expect(getAdminSubPanelGroup("/admin/map-edit", adminPermissions)).toBeNull();
+    // モデレーターからは見えないメインのサブは出ない
+    expect(getAdminSubPanelGroup("/admin/settings", moderatorPermissions)).toBeNull();
   });
 
   it("受信トレイの中の通報・問い合わせでも、サイドバーでは受信トレイが選択状態になる", () => {

@@ -24,10 +24,12 @@ describe("sitemap", () => {
     fetchPublicMarketBySlug.mockReset().mockResolvedValue(null);
   });
 
-  it("旧番号（場所の番号）の店は載せない", async () => {
-    fetchPublicShops.mockResolvedValue([{ id: 1 }, { id: 350 }, { id: 999 }]);
+  it("公開店舗（fetchPublicShops）を店舗ID（1000以上）の URL として載せ、旧番号（3桁）は載せない", async () => {
+    fetchPublicShops.mockResolvedValue([{ id: 1 }, { id: 350 }, { id: 1000 }, { id: 1999 }]);
     const urls = (await sitemap()).map((entry) => entry.url);
-    expect(urls.some((u) => u.includes("/shops/"))).toBe(false);
+    expect(urls.some((u) => u.endsWith("/shops/1000"))).toBe(true);
+    expect(urls.some((u) => u.endsWith("/shops/1999"))).toBe(true);
+    expect(urls.some((u) => /\/shops\/(001|350)$/.test(u))).toBe(false);
   });
   it("次の日曜に出店しない公開店舗もサイトマップに残す", async () => {
     fetchPublicShops.mockResolvedValue([{ id: 1001, hasMapLocation: false, nextMarketStatus: "not_scheduled" }]);

@@ -23,7 +23,7 @@ describe("uploadedShopImage", () => {
 
 describe("pickLandingShopPhotos", () => {
   it("写真のある店だけを、店番つきで並べる", () => {
-    const photos = pickLandingShopPhotos([shop({ id: 2 }), shop({ id: 1001, images: { main: SUPABASE_IMAGE } })]);
+    const photos = pickLandingShopPhotos([shop({ id: 1002 }), shop({ id: 1001, images: { main: SUPABASE_IMAGE } })]);
     expect(photos).toEqual([{ id: 1001, code: "1001", name: "店1001", image: SUPABASE_IMAGE }]);
   });
 

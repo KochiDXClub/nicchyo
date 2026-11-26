@@ -98,6 +98,21 @@ export interface BenchmarkReport {
 
 export type BenchmarkProgress = (label: string) => void;
 
+/** `?perf=1` のときに地図ページが window.__nicchyoMapBench として公開するもの（管理画面の計測から呼ぶ） */
+export interface NicchyoMapBench {
+  run: (onProgress?: BenchmarkProgress) => Promise<BenchmarkReport>;
+  domStats: () => DomStats;
+  /** プロファイル取得などで個別にズームさせたいときに使う */
+  zoomTo: (zoom: number) => void;
+  getZoom: () => number;
+}
+
+declare global {
+  interface Window {
+    __nicchyoMapBench?: NicchyoMapBench;
+  }
+}
+
 const DROPPED_FRAME_THRESHOLD_MS = 33;
 
 function nextFrame(): Promise<number> {
