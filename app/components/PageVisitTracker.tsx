@@ -94,6 +94,11 @@ export default function PageVisitTracker() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         flush(true);
+      } else {
+        // 表示に戻ったら、そこから数え直す。隠れていた時間は滞在に含めず、
+        // 次の離脱で送れるように送信済みの印も戻す
+        startTimeRef.current = Date.now();
+        sentRef.current = false;
       }
     };
     const handlePageHide = () => {
