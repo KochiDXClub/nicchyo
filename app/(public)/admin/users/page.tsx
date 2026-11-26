@@ -156,22 +156,9 @@ function AdminUsersContent() {
 
       <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-4 pb-24 pt-3 sm:pb-4 sm:pt-4">
         {/* 件数・検索・絞り込みを、できるだけ少ない段で収める */}
-        <div className="mb-3 shrink-0 space-y-2">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-end">
-            <div className="relative w-full lg:w-80">
-              <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-nicchyo-ink/40" />
-              <input
-                ref={u.searchInputRef}
-                type="search"
-                aria-label="名前・メールアドレスで検索"
-                placeholder="名前・メールアドレスで検索... (/)"
-                value={u.searchQuery}
-                onChange={(e) => u.setSearchQuery(e.target.value)}
-                className="h-11 w-full rounded-btn border border-line bg-white pl-9 pr-3 text-base text-nicchyo-ink placeholder:text-nicchyo-ink/40 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 sm:h-10 sm:text-sm"
-              />
-            </div>
-          </div>
-          <div role="group" aria-label="状態で絞り込む" className="flex flex-wrap gap-2">
+        {/* 絞り込み（左）と検索（右）を一行に並べる。PC では一行に収まり、スマホでは検索が次の段に回る */}
+        <div className="mb-3 flex shrink-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div role="group" aria-label="状態で絞り込む" className="flex min-w-0 flex-wrap gap-2">
             {[
               { key: "all", label: "すべて", count: u.stats.total },
               { key: "admin", label: "管理者", count: u.stats.admins },
@@ -184,6 +171,18 @@ function AdminUsersContent() {
                 <span className="ml-1 tabular-nums">({f.count})</span>
               </FilterChip>
             ))}
+          </div>
+          <div className="relative w-full shrink-0 lg:w-80">
+            <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-nicchyo-ink/40" />
+            <input
+              ref={u.searchInputRef}
+              type="search"
+              aria-label="名前・メールアドレスで検索"
+              placeholder="名前・メールアドレスで検索... (/)"
+              value={u.searchQuery}
+              onChange={(e) => u.setSearchQuery(e.target.value)}
+              className="h-11 w-full rounded-btn border border-line bg-white pl-9 pr-3 text-base text-nicchyo-ink placeholder:text-nicchyo-ink/40 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 sm:h-10 sm:text-sm"
+            />
           </div>
         </div>
 
