@@ -39,6 +39,11 @@ interface AdminDataTableProps<T> {
    */
   mobileLayout?: "cards" | "list";
   /**
+   * 親の残りの高さいっぱいに広げ、スクロールは表の本体だけで行う（見出しと表の外枠は動かない）。
+   * 親は高さが決まった flex の縦並びであること。maxHeightClass より優先する。
+   */
+  fillHeight?: boolean;
+  /**
    * 行が多いときだけ。表示している行だけ描く（上下の余白は空の行で埋めるので、表の構造は変わらない）。
    * スクロールで列幅が揺れないよう table-fixed にするので、各列の className に幅（w-32 など）を付ける。
    */
@@ -65,6 +70,7 @@ export function AdminDataTable<T>({
   actions,
   mobileCard,
   mobileLayout = "cards",
+  fillHeight = false,
   virtualize = false,
   maxHeightClass = "max-h-[70vh]",
 }: AdminDataTableProps<T>) {
@@ -91,10 +97,12 @@ export function AdminDataTable<T>({
       <div
         className={cn(
           "overflow-hidden rounded-card bg-white shadow-card ring-1 ring-line",
-          mobileCard && "hidden sm:block"
+          mobileCard ? "hidden sm:block" : fillHeight && "flex",
+          fillHeight && (mobileCard ? "sm:flex" : "flex-1"),
+          fillHeight && "min-h-0 flex-1 flex-col"
         )}
       >
-        <div ref={scrollRef} className={cn("overflow-auto", maxHeightClass)}>
+        <div ref={scrollRef} className={cn("overflow-auto", fillHeight ? "min-h-0 flex-1" : maxHeightClass)}>
           <table className={cn("w-full", virtualize ? "min-w-[960px] table-fixed" : "min-w-[720px]")}>
             <thead className="sticky top-0 z-10 bg-nicchyo-base">
               <tr className="border-b border-line">
@@ -180,7 +188,12 @@ export function AdminDataTable<T>({
       </div>
 
       {mobileCard && mobileLayout === "list" && (
-        <div className="overflow-hidden rounded-card bg-white shadow-card ring-1 ring-line sm:hidden">
+        <div
+          className={cn(
+            "rounded-card bg-white shadow-card ring-1 ring-line sm:hidden",
+            fillHeight ? "min-h-0 flex-1 overflow-y-auto" : "overflow-hidden"
+          )}
+        >
           <ul className="divide-y divide-line">
             {rows.map((row, index) => (
               <li key={getRowId(row)}>{mobileCard(row, index)}</li>

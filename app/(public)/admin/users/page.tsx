@@ -135,25 +135,30 @@ function AdminUsersContent() {
   );
 
   return (
-    <AdminLayout>
-      <AdminPageHeader
-        eyebrow="User Admin"
-        title="ユーザー管理"
-        description="アカウントの検索・招待・権限の管理"
-        actions={
-          <>
-            <Button className="flex-1 px-4 sm:flex-none" onClick={u.handleCreateUser} aria-label="新規ユーザーを追加">
-              <Plus size={18} aria-hidden="true" />
-              ユーザーを追加
-            </Button>
-            <ExportActions compact onCsv={u.exportCsv} onJson={u.exportJson} loading={u.isExporting} />
-          </>
-        }
-      />
+    // 画面いっぱいの高さに収め、スクロールは表の本体だけにする（Supabase の Users と同じ形）
+    <AdminLayout withBottomPadding={false}>
+      <div className="flex h-[100dvh] flex-col">
+      <div className="shrink-0">
+        <AdminPageHeader
+          eyebrow="User Admin"
+          title="ユーザー管理"
+          actions={
+            <>
+              <Button className="flex-1 px-4 sm:flex-none" onClick={u.handleCreateUser} aria-label="新規ユーザーを追加">
+                <Plus size={18} aria-hidden="true" />
+                ユーザーを追加
+              </Button>
+              <ExportActions compact onCsv={u.exportCsv} onJson={u.exportJson} loading={u.isExporting} />
+            </>
+          }
+        />
+      </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-5 pb-20 sm:py-8">
-        {/* 件数は面に入れず、一行の要約として見せる */}
-        <dl className="mb-4 flex flex-wrap items-baseline gap-x-5 gap-y-2 text-sm text-nicchyo-ink/70">
+      <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-4 pb-24 pt-3 sm:pb-4 sm:pt-4">
+        {/* 件数・検索・絞り込みを、できるだけ少ない段で収める */}
+        <div className="mb-3 shrink-0 space-y-2">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-nicchyo-ink/70">
           {[
             { label: "総ユーザー数", value: u.stats.total, tone: "text-nicchyo-ink" },
             { label: "管理者", value: u.stats.admins, tone: "text-status-critical-fg" },
@@ -166,10 +171,20 @@ function AdminUsersContent() {
               <dd className={`font-bold tabular-nums ${item.tone}`}>{item.value}</dd>
             </div>
           ))}
-        </dl>
-
-        {/* 絞り込みと検索は面に包まず、一覧の真上に置く */}
-        <div className="mb-4 space-y-3">
+            </dl>
+            <div className="relative w-full lg:w-80">
+              <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-nicchyo-ink/40" />
+              <input
+                ref={u.searchInputRef}
+                type="search"
+                aria-label="名前・メールアドレスで検索"
+                placeholder="名前・メールアドレスで検索... (/)"
+                value={u.searchQuery}
+                onChange={(e) => u.setSearchQuery(e.target.value)}
+                className="h-11 w-full rounded-btn border border-line bg-white pl-9 pr-3 text-base text-nicchyo-ink placeholder:text-nicchyo-ink/40 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 sm:h-10 sm:text-sm"
+              />
+            </div>
+          </div>
           <div role="group" aria-label="状態で絞り込む" className="flex flex-wrap gap-2">
             {[
               { key: "all", label: "すべて", count: u.stats.total },
@@ -184,21 +199,9 @@ function AdminUsersContent() {
               </FilterChip>
             ))}
           </div>
-          <div className="relative w-full sm:max-w-md">
-            <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-nicchyo-ink/40" />
-            <input
-              ref={u.searchInputRef}
-              type="search"
-              aria-label="名前・メールアドレスで検索"
-              placeholder="名前・メールアドレスで検索... (/)"
-              value={u.searchQuery}
-              onChange={(e) => u.setSearchQuery(e.target.value)}
-              className="h-11 w-full rounded-btn border border-line bg-white pl-9 pr-3 text-base text-nicchyo-ink placeholder:text-nicchyo-ink/40 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 sm:h-10 sm:text-sm"
-            />
-          </div>
         </div>
 
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-nicchyo-ink/70 sm:hidden">
+        <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 text-sm text-nicchyo-ink/70 sm:hidden">
           <label className="flex min-h-11 items-center gap-2">
             <input type="checkbox" checked={u.selection.allSelected} onChange={u.selection.toggleAll} disabled={u.sortedData.length === 0} className="h-5 w-5 accent-amber-600" />
             表示中をすべて選択
@@ -215,6 +218,7 @@ function AdminUsersContent() {
           </div>
         </div>
 
+        <div className="shrink-0">
         <BulkActionBar count={u.selection.selectedIds.length} unit="人" onClear={u.selection.clear}>
           <Button variant="quiet" size="sm" onClick={() => u.handleBulk("restore", "アクティブ化")} disabled={u.bulkLoading}>
             一括アクティブ化
@@ -226,6 +230,7 @@ function AdminUsersContent() {
             一括削除
           </Button>
         </BulkActionBar>
+        </div>
 
         {u.isLoadingUsers ? (
           <CenteredLoading padding="py-16" className="text-nicchyo-ink/40" />
@@ -257,6 +262,7 @@ function AdminUsersContent() {
             selectionLabel={(user) => `ユーザー「${user.name}」を選択`}
             selectAllLabel="表示中のユーザーをすべて選択"
             virtualize
+            fillHeight
             actions={(user) => renderUserActions(user)}
             mobileLayout="list"
             mobileCard={(user, index) => (
@@ -282,6 +288,7 @@ function AdminUsersContent() {
             )}
           />
         )}
+      </div>
       </div>
 
       {/* 権限変更モーダル */}
