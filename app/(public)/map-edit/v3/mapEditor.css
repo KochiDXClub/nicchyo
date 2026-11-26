@@ -82,7 +82,7 @@
   justify-content:flex-end;
   gap:8px;
 }
-.map-editor-header-actions button, .map-editor-sheet-toggle, .map-editor-sheet-close, .map-editor-lane-toggle {
+.map-editor-header-actions button, .map-editor-sheet-toggle, .map-editor-sheet-close {
   min-height:42px;
   display:inline-flex;
   align-items:center;
@@ -201,7 +201,7 @@
   font-size:16px;
   font-weight:800;
 }
-.map-editor-sheet-toggle, .map-editor-sheet-close, .map-editor-lane-toggle {
+.map-editor-sheet-toggle, .map-editor-sheet-close {
   display:none;
 }
 .map-editor-palette {
@@ -338,21 +338,6 @@
     background:var(--editor-green);
     color:white;
     border-color:var(--editor-green);
-  }
-  .map-editor-lane-toggle {
-    display:inline-flex;
-    position:absolute;
-    z-index:3;
-    bottom:calc(64px + env(safe-area-inset-bottom));
-    left:12px;
-    box-shadow:theme('boxShadow.card');
-  }
-  .map-editor-lane.is-closed {
-    display:none;
-  }
-  .map-editor-lane {
-    max-height:32%;
-    overflow:auto;
   }
   .map-editor-aside input, .map-editor-aside select, .map-editor-aside textarea {
     font-size:16px !important;
