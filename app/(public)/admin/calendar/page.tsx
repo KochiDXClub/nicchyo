@@ -14,6 +14,7 @@ import { useAdminMarketDays } from "./useAdminMarketDays";
 import { MarketDayStatusEditorForDate, MarketDayStatusChip } from "./MarketDayStatusEditor";
 import { EventRow } from "./EventRow";
 import { EventForm } from "./EventForm";
+import MarketMonthCalendar from "./MarketMonthCalendar";
 
 export default function AdminCalendarPage() {
   const { permissions, isLoading } = useAuth();
@@ -43,6 +44,11 @@ export default function AdminCalendarPage() {
   // 予定の追加・編集フォームをどのカードの中に出すか。null は「表示範囲外の予定」の枠。
   // 以前は独立したモーダルでどの日の編集か分かりにくかったため、該当カードの中に出す
   const [formDateIso, setFormDateIso] = useState<string | null>(null);
+  // 月カレンダーの日をタップしたら、その日曜のカードを開いて見える位置まで移動する
+  const openDay = (dateIso: string) => {
+    expand(dateIso);
+    document.getElementById(`day-${dateIso}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const openCreateIn = (dateIso: string) => {
     expand(dateIso);
     setFormDateIso(dateIso);
@@ -79,11 +85,14 @@ export default function AdminCalendarPage() {
         <div className="flex items-center justify-center py-16 text-nicchyo-ink/55">読み込み中...</div>
       ) : (
         <div className="space-y-3">
+          <MarketMonthCalendar events={e.events} days={d.days} onOpenDay={openDay} />
+
           {e.sundays.map(({ dateIso, weeksAhead, items }) => {
             const isExpanded = expandedDates.has(dateIso);
             return (
               <div
                 key={dateIso}
+                id={`day-${dateIso}`}
                 className={`rounded-xl border bg-white shadow-sm ${
                   weeksAhead === 0 ? "border-amber-300" : "border-line"
                 }`}
