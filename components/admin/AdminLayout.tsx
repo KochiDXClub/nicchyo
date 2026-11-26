@@ -49,7 +49,7 @@ export const AdminLayout = React.memo(function AdminLayout({
         onToggle={() => setIsSidebarOpen((v) => !v)}
         onClose={() => setIsSidebarOpen(false)}
       />
-      <main className={`min-h-screen ${withBottomPadding ? "pb-24" : ""}`}>{children}</main>
+      <main className={`min-h-[calc(100dvh-3.5rem)] ${withBottomPadding ? "pb-24" : ""}`}>{children}</main>
     </div>
   );
 });

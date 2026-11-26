@@ -27,6 +27,9 @@ export const CONSOLE_SIDEBAR_RAIL_OFFSET_CLASS = "lg:pl-14";
 /** アイコン列とサブ一覧（幅 w-56）のぶん、本文を右へ寄せる余白 */
 export const CONSOLE_SIDEBAR_RAIL_WITH_PANEL_OFFSET_CLASS = "lg:pl-[280px]";
 
+/** サブ一覧の左端（PC）。サブ一覧を出すページの下部バーなどを、本文と同じ位置に合わせる */
+export const CONSOLE_SIDEBAR_PANEL_LEFT_CLASS = "lg:left-[280px]";
+
 /** 呼び出し側の色。サイドバーは面で色を塗らないので、線と文字だけの控えめな指定にする */
 export type ConsoleSidebarAccent = {
   /** 選択中の項目の左に出す縦線 */
@@ -102,7 +105,8 @@ const FOOTER_ACTION_CLASS =
 const RAIL_MOTION = "lg:transition-[max-width,max-height,opacity,padding,left,right] lg:duration-200 lg:ease-out motion-reduce:transition-none";
 const RAIL_REVEAL = "lg:max-w-0 lg:overflow-hidden lg:opacity-0 lg:group-hover/rail:max-w-[200px] lg:group-hover/rail:opacity-100 lg:group-focus-within/rail:max-w-[200px] lg:group-focus-within/rail:opacity-100";
 const RAIL = {
-  aside: "lg:w-14 lg:hover:w-[248px] lg:focus-within:w-[248px] lg:hover:shadow-float lg:focus-within:shadow-float",
+  // スマホ（lg 未満）は基本の 248px。PC だけアイコン列の幅にする
+  aside: "w-[248px] lg:w-14 lg:hover:w-[248px] lg:focus-within:w-[248px] lg:hover:shadow-float lg:focus-within:shadow-float",
   header: "lg:px-2 lg:group-hover/rail:px-4 lg:group-focus-within/rail:px-4",
   nav: "lg:px-2 lg:group-hover/rail:px-3 lg:group-focus-within/rail:px-3",
   groupLabel: `${RAIL_MOTION} lg:max-h-0 lg:pb-0 lg:overflow-hidden lg:opacity-0 lg:group-hover/rail:max-h-6 lg:group-hover/rail:pb-1.5 lg:group-hover/rail:opacity-100 lg:group-focus-within/rail:max-h-6 lg:group-focus-within/rail:pb-1.5 lg:group-focus-within/rail:opacity-100`,
