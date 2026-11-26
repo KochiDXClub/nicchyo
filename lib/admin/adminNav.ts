@@ -26,6 +26,7 @@ import {
   FileText,
   Frame,
   Gauge,
+  Home,
   Inbox,
   LayoutDashboard,
   Map as MapIcon,
@@ -90,7 +91,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   {
     id: "home",
     label: "ホーム",
-    icon: LayoutDashboard,
+    icon: Home,
     access: "contentModerator",
     items: [
       {
