@@ -26,6 +26,7 @@ import {
   FileText,
   Frame,
   Gauge,
+  Home,
   Inbox,
   LayoutDashboard,
   Map as MapIcon,
@@ -66,10 +67,12 @@ export interface AdminNavItem {
 }
 
 export interface AdminNavGroup {
-  /** グループID（テストやアンカーで使う） */
+  /** メインのID（テストやアンカーで使う） */
   id: string;
-  /** グループ見出し */
+  /** メインの名前（左のアイコン列の見出し・モバイルの見出し） */
   label: string;
+  /** メインのアイコン（左のアイコン列） */
+  icon: LucideIcon;
   /** このグループを見られる権限 */
   access: AdminNavAccess;
   items: AdminNavItem[];
@@ -78,13 +81,17 @@ export interface AdminNavGroup {
 /**
  * 管理画面のナビゲーション定義
  *
- * 並び順はそのまま画面の並び順になる。新しい管理機能を追加するときは、
- * 必ずどこかのグループに入れる（入らないなら、そもそも置き場所を再検討する）。
+ * 構成は「メイン（左のアイコン列）→ サブ（メインを選ぶと常に出る一覧）」の2段。
+ * メインは `ADMIN_NAV_GROUPS` の1件、サブはその `items`。サブが1件だけのメイン（マップ編集）は
+ * サブ一覧を出さず、メインを押すとそのページへ行く。
+ * 並び順はそのまま画面の並び順になる。新しい管理機能を追加するときは、必ずどこかのメインの
+ * サブに入れる（入らないなら、そもそも置き場所を再検討する）。
  */
 export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   {
     id: "home",
     label: "ホーム",
+    icon: Home,
     access: "contentModerator",
     items: [
       {
@@ -93,44 +100,27 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         icon: LayoutDashboard,
         description: "未対応の件数と今週の状況をまとめて確認する",
       },
-    ],
-  },
-  {
-    id: "weekly",
-    label: "今週の運用",
-    access: "admin",
-    items: [
       {
         label: "日曜市カレンダー",
         href: "/admin/calendar",
         icon: CalendarDays,
         description: "開催ステータスの切替と、出店予定・イベントの入稿をまとめて行う",
-      },
-      {
-        label: "市の管理",
-        href: "/admin/markets",
-        icon: MapPinned,
-        description: "市の公開設定や開催曜日を管理する",
+        access: "admin",
       },
       {
         label: "出店予定管理",
         href: "/admin/market-schedule",
         icon: CalendarDays,
         description: "場所と店舗ごとの出店日・繰り返し・休みを管理する",
+        access: "admin",
       },
       {
         label: "旧店舗番号の確認",
         href: "/admin/legacy-shop-identities",
         icon: ClipboardList,
         description: "以前の店舗番号と店舗の対応を確認する",
+        access: "admin",
       },
-    ],
-  },
-  {
-    id: "inbox",
-    label: "対応する",
-    access: "contentModerator",
-    items: [
       {
         label: "受信トレイ",
         href: "/admin/notifications",
@@ -157,6 +147,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   {
     id: "data",
     label: "データ管理",
+    icon: Database,
     access: "admin",
     items: [
       {
@@ -190,10 +181,10 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         description: "店舗カテゴリのマスタを管理する",
       },
       {
-        label: "マップ編集",
-        href: "/admin/map-edit",
-        icon: MapIcon,
-        description: "出店場所や道、建物の位置を編集する",
+        label: "市の管理",
+        href: "/admin/markets",
+        icon: MapPinned,
+        description: "市の公開設定や開催曜日を管理する",
       },
       {
         label: "マップの表示範囲",
@@ -210,8 +201,23 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     ],
   },
   {
+    id: "map-edit",
+    label: "マップ編集",
+    icon: MapIcon,
+    access: "admin",
+    items: [
+      {
+        label: "マップ編集",
+        href: "/admin/map-edit",
+        icon: MapIcon,
+        description: "出店場所や道、建物の位置を編集する",
+      },
+    ],
+  },
+  {
     id: "insight",
     label: "分析",
+    icon: BarChart3,
     access: "admin",
     items: [
       {
@@ -235,10 +241,17 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     ],
   },
   {
-    id: "system",
-    label: "システム",
+    id: "settings",
+    label: "設定",
+    icon: Settings,
     access: "admin",
     items: [
+      {
+        label: "設定",
+        href: "/admin/settings",
+        icon: Settings,
+        description: "公開範囲・機能フラグ・通知メールをまとめて設定する",
+      },
       {
         label: "AIの設定",
         href: "/admin/ai-prompts",
@@ -250,12 +263,6 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: "/admin/embeddings",
         icon: Database,
         description: "にちよさんの検索データを更新し、実行履歴を確認する",
-      },
-      {
-        label: "設定",
-        href: "/admin/settings",
-        icon: Settings,
-        description: "公開範囲・機能フラグ・通知メールをまとめて設定する",
       },
       {
         label: "監査ログ",
@@ -295,6 +302,20 @@ export function getVisibleAdminNav(permissions: PermissionCheck): AdminNavGroup[
       items: group.items.filter((item) => canAccess(item.access ?? group.access, permissions)),
     }))
     .filter((group) => group.items.length > 0);
+}
+
+/**
+ * 今のパスのメインで、サブ一覧を出すべきもの（見られるサブが2件以上）を返す。
+ * サブが1件以下のメインは、サブ一覧を出さない（マップ編集など）。
+ */
+export function getAdminSubPanelGroup(
+  pathname: string | null,
+  permissions: PermissionCheck
+): AdminNavGroup | null {
+  const group = getVisibleAdminNav(permissions).find((g) =>
+    g.items.some((item) => isAdminNavItemCurrent(item, pathname))
+  );
+  return group && group.items.length > 1 ? group : null;
 }
 
 /** 現在のパスがどの項目に対応するかを判定する（サブパスも含める） */

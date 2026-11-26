@@ -15,9 +15,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Map as MapIcon } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useAdminInboxCounts } from "@/lib/hooks/useAdminInboxCounts";
-import { ConsoleSidebar, type ConsoleSidebarAccent } from "@/components/navigation/ConsoleSidebar";
+import {
+  ConsoleSidebar,
+  type ConsoleSidebarAccent,
+  type ConsoleSidebarItem,
+  type ConsoleSidebarRailItem,
+} from "@/components/navigation/ConsoleSidebar";
 import { CountBadge } from "./CountBadge";
-import { getVisibleAdminNav, isAdminNavItemCurrent } from "@/lib/admin/adminNav";
+import { getVisibleAdminNav, isAdminNavItemCurrent, type AdminNavItem } from "@/lib/admin/adminNav";
 
 /**
  * ロールごとのアクセント。
@@ -45,17 +50,40 @@ export const AdminSidebar = React.memo(function AdminSidebar({
   const { total: inboxCount } = useAdminInboxCounts(permissions.isAdmin || permissions.canModerateContent, pathname);
 
   const accent = ROLE_ACCENT[user?.role ?? ""] ?? DEFAULT_ACCENT;
-  const groups = getVisibleAdminNav(permissions).map((group) => ({
+  // 見られるメインと、その配下（サブ）。PC の左列はメイン、サブは選んだメインの分だけ右に常に出す
+  const visibleGroups = getVisibleAdminNav(permissions);
+  const isItemCurrent = (item: AdminNavItem) => isAdminNavItemCurrent(item, pathname);
+  const activeGroup = visibleGroups.find((group) => group.items.some(isItemCurrent)) ?? null;
+
+  const toItem = (item: AdminNavItem): ConsoleSidebarItem => ({
+    label: item.label,
+    href: item.href,
+    icon: item.icon,
+    description: item.description,
+    isActive: isItemCurrent(item),
+    trailing: <CountBadge count={item.badgeKey === "inbox" ? inboxCount : 0} label={item.label} />,
+  });
+
+  // 配下に受信トレイ（新着）があるメインは、アイコンの右上に合計の件数を出す
+  const railItems: ConsoleSidebarRailItem[] = visibleGroups.map((group) => ({
     id: group.id,
     label: group.label,
-    items: group.items.map((item) => ({
-      label: item.label,
-      href: item.href,
-      icon: item.icon,
-      description: item.description,
-      isActive: isAdminNavItemCurrent(item, pathname),
-      trailing: <CountBadge count={item.badgeKey === "inbox" ? inboxCount : 0} label={item.label} />,
-    })),
+    href: group.items[0].href,
+    icon: group.icon,
+    isActive: group === activeGroup,
+    trailing: group.items.some((item) => item.badgeKey === "inbox") ? (
+      <CountBadge count={inboxCount} label={group.label} />
+    ) : undefined,
+  }));
+  // サブ一覧はメインに2件以上あるときだけ（マップ編集のような1件だけのメインは出さない）
+  const subPanel =
+    activeGroup && activeGroup.items.length > 1
+      ? { label: activeGroup.label, items: activeGroup.items.map(toItem) }
+      : null;
+  const groups = visibleGroups.map((group) => ({
+    id: group.id,
+    label: group.label,
+    items: group.items.map(toItem),
   }));
   const roleLabel = permissions.isAdmin ? "管理者" : "モデレーター";
 
@@ -71,6 +99,10 @@ export const AdminSidebar = React.memo(function AdminSidebar({
       onToggle={onToggle}
       onClose={onClose}
       menuLabel="管理メニュー"
+      // PC ではアイコンだけのレールにし、カーソルを重ねた時だけ項目名を出す（Supabase 風）
+      collapsible
+      rail={railItems}
+      subPanel={subPanel}
       homeHref="/admin/dashboard"
       homeLabel="nicchyo 管理ダッシュボードへ"
       subtitle="管理コンソール"
