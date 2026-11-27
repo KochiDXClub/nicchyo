@@ -208,6 +208,7 @@ export function useAdminMarketDays({
 
   return {
     loading,
+    days,
     history,
     isSaving: (dateIso: string) => operations.get(dateIso) === "save",
     recentNotes,

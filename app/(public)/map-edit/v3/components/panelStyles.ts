@@ -1,4 +1,4 @@
-/** 右パネル（区画・道・建物の詳細、区画分け、移行）で共通に使う見た目 */
+/** 右パネル（区画・道・建物の詳細、移行）で共通に使う見た目 */
 import type { CSSProperties } from "react";
 
 export const panelWrap: CSSProperties = { padding: 16, borderBottom: "1px solid #F3EBD8" };

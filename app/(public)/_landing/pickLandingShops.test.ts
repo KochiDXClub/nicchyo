@@ -23,14 +23,14 @@ describe("uploadedShopImage", () => {
 
 describe("pickLandingShopPhotos", () => {
   it("写真のある店だけを、店番つきで並べる", () => {
-    const photos = pickLandingShopPhotos([shop({ id: 2 }), shop({ id: 1, images: { main: SUPABASE_IMAGE } })]);
-    expect(photos).toEqual([{ id: 1, code: "001", name: "店1", image: SUPABASE_IMAGE }]);
+    const photos = pickLandingShopPhotos([shop({ id: 1002 }), shop({ id: 1001, images: { main: SUPABASE_IMAGE } })]);
+    expect(photos).toEqual([{ id: 1001, code: "1001", name: "店1001", image: SUPABASE_IMAGE }]);
   });
 
   it("id 順で、上限までに切る", () => {
-    const shops = Array.from({ length: 12 }, (_, i) => shop({ id: 12 - i, images: { main: SUPABASE_IMAGE } }));
+    const shops = Array.from({ length: 12 }, (_, i) => shop({ id: 1012 - i, images: { main: SUPABASE_IMAGE } }));
     const photos = pickLandingShopPhotos(shops);
     expect(photos).toHaveLength(LANDING_SHOP_PHOTO_LIMIT);
-    expect(photos.map((p) => p.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(photos.map((p) => p.id)).toEqual([1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008]);
   });
 });

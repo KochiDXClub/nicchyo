@@ -54,7 +54,7 @@ export default function TrafficChartCard({
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-nicchyo-ink/55">{eyebrow}</p>
-          <h2 className="mt-2 text-xl font-bold text-gray-900">{title}</h2>
+          <h2 className="mt-2 text-xl font-bold text-nicchyo-ink">{title}</h2>
         </div>
         <div className="flex flex-col gap-3 md:items-end">
           <div className="inline-flex rounded-chip bg-nicchyo-ink/5 p-1">

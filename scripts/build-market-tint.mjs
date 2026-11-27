@@ -10,7 +10,7 @@
  * 出力:   public/images/maps/market-tint.webp（1024×410、ロスレス）
  *
  * 見た目を変えたいときは下の SVG を編集してこのスクリプトを実行し直す。
- * app/(public)/map/components/BackgroundOverlay.tsx の MARKET_TINT_SVG と同じ内容にしておくこと。
+ * 地図（MapViewMapLibre.tsx）が読むのは出力の webp で、範囲は MARKET_TINT_COORDS で決まる。
  */
 
 import sharp from "sharp";

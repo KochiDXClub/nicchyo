@@ -47,7 +47,7 @@ export function slotLabel(shop: Pick<EditableShop, "position" | "officialNumber"
 
 /**
  * 丁目の表示順・許容値の一覧。サーバー側（_shared.ts の normalizeChome）と
- * クライアント側（v3/types.ts, RoadLaneView.tsx）の両方が同じ並び・値を
+ * クライアント側（v3/types.ts, v3/laneGroups.ts）の両方が同じ並び・値を
  * 参照できるよう、ここに1本化する（別々に持つと丁目の増減時に片方だけ
  * 更新し忘れ、区画情報が黙って落ちる恐れがあるため）。
  */

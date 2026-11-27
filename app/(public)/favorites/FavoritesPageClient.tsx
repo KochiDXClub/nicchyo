@@ -46,11 +46,6 @@ const UNDO_DURATION_MS = 6000;
 
 type UndoItem = { id: number; label: string; entries: FavoriteEntry[] };
 
-/** 未確認の旧番号で表示中でも、保存時の変換元から対象を特定する。 */
-function matchesDisplayedShop(entry: FavoriteEntry, shopId: number): boolean {
-  return entry.shopId === shopId || (shopId <= 999 && entry.legacyShopId === shopId);
-}
-
 /** 並びの好みは端末に覚えさせる。毎回選び直させない */
 function loadSort(): SortKey {
   if (typeof window === "undefined") return "place";
@@ -178,8 +173,8 @@ export default function FavoritesPageClient() {
   const removeShop = useCallback(
     (shopId: number, label: string) => {
       const current = loadFavoriteEntries();
-      const removed = current.filter((entry) => matchesDisplayedShop(entry, shopId));
-      saveFavoriteEntries(current.filter((entry) => !matchesDisplayedShop(entry, shopId)));
+      const removed = current.filter((entry) => entry.shopId === shopId);
+      saveFavoriteEntries(current.filter((entry) => entry.shopId !== shopId));
       offerUndo(label, removed);
     },
     [offerUndo],
@@ -207,7 +202,7 @@ export default function FavoritesPageClient() {
   const handleRemoveProduct = useCallback(
     (shopId: number, product: string) => {
       const current = loadFavoriteEntries();
-      const matches = (entry: FavoriteEntry) => matchesDisplayedShop(entry, shopId) && entry.product === product;
+      const matches = (entry: FavoriteEntry) => entry.shopId === shopId && entry.product === product;
       const removed = current.filter(matches);
       saveFavoriteEntries(current.filter((entry) => !matches(entry)));
       offerUndo(product, removed);
@@ -380,7 +375,7 @@ function FavoriteRow({
     ? nextMarketStatusLabel(shop, locale) ?? [showChome ? row.location?.chome : null, "マップで場所を確認"].filter(Boolean).join(" ・ ")
     : isLoadingShops
       ? "読み込み中"
-      : row.shopId <= 999 ? "以前の店舗番号を確認中です" : "出店情報が見つかりません";
+      : "出店情報が見つかりません";
 
   return (
     <li className="px-3 py-2.5">

@@ -22,7 +22,6 @@ import {
   loadFavoriteEntries,
   removeFavoriteShop,
   toggleFavoriteShop,
-  tryMigrateFavoriteShopIdentities,
   type FavoriteEntry,
 } from "@/lib/favoriteShops";
 import RemoveShopFavoriteDialog from "./RemoveShopFavoriteDialog";
@@ -55,12 +54,6 @@ export function useShopFavoriteToggle({ zIndexClassName, onChange }: Options = {
         const next = toggleFavoriteShop(shopId);
         onChange?.(next);
       };
-      if (loadFavoriteEntries().some((entry) => entry.shopId === shopId && entry.legacyShopId !== undefined)) {
-        void tryMigrateFavoriteShopIdentities().then((verified) => {
-          if (verified) applyToggle();
-        });
-        return;
-      }
       applyToggle();
     },
     [onChange],

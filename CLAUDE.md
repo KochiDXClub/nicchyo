@@ -55,7 +55,7 @@ PRを出す前は必ず `npm run build` でビルドが通ることを確認す�
 - **Frontend**: Next.js 16 (App Router), React 18, TypeScript 5.9
 - **Styling**: Tailwind CSS（カスタムパレット: `nicchyo-base/primary/accent/ink/soft-green`）
 - **DB**: Supabase
-- **Map**: Leaflet + react-leaflet（`reactStrictMode: false` ← Leafletの二重初期化防止）
+- **Map**: MapLibre GL JS（`maplibre-gl`）
 - **AI**: OpenAI API（RAG構成、`app/api/grandma/`）
 - **Auth**: Supabase Auth（`lib/auth/AuthContext.tsx`）
 
@@ -80,7 +80,7 @@ app/
 │   ├── map/           # メイン地図ページ（主機能）
 │   ├── search/        # 店舗検索
 │   ├── consult/       # AI「にちよさん」チャット
-│   ├── shops/[code]/  # 店舗詳細（コードは3桁ゼロ埋め: 001〜999）
+│   ├── shops/[code]/  # 店舗詳細（店舗ID 1000以上。旧番号 001〜999 は固定URLへ転送）
 │   ├── my-shop/       # 出店者向けページ
 │   └── ...
 ├── private/           # 要認証ページ
@@ -106,10 +106,10 @@ app/
 
 ```
 Layer 4: UI（ボタン・バナー・ズームコントロール）
-Layer 3: 店舗層（OptimizedShopLayerWithClustering + markerHtmlGenerator）
-Layer 2: 道層（RoadOverlay, zIndex: 50）
-Layer 1: 背景層（BackgroundOverlay, 現在無効）
-Layer 0: Leafletベースマップ
+Layer 3: 店舗層（maplibre/shopFeatures.ts のシンボルレイヤー + markerHtmlGenerator）
+Layer 2: 道層（nicchyo-road-* レイヤー）
+Layer 1: 背景層（色かぶせ nicchyo-tint）
+Layer 0: MapLibreベースマップ
 ```
 
 - **座標の基準**: `config/roadConfig.ts` がすべての基準（高知城前〜追手筋東端）
@@ -119,7 +119,7 @@ Layer 0: Leafletベースマップ
 
 ### 店舗コード体系
 
-店舗IDは1〜999の整数（`MAX_SHOP_ID`）。URLパラメータ・QRコードでは3桁ゼロ埋め文字列（`001`〜`999`）。変換は `lib/shops/route.ts` の `normalizeShopCodeToId` / `formatShopIdToCode` を使う。
+場所の番号は1〜999（`MAX_SHOP_ID`）で、旧番号として扱う。共有リンク・QR・案内には店舗ID（1000以上の整数）だけを使い、`lib/shops/route.ts` の `formatShopIdToCode` で文字列にする（旧番号は `null`）。旧 URL（`/shops/001`）の受け付けは `normalizeShopCodeToId` と、店舗ページでの固定URLへの転送で行う。
 
 `next.config.js` に `/shops001` → `/shops/001` のリライトルールあり。
 
@@ -153,6 +153,7 @@ nicchyo-soft-green: #A0D7A7  （淡い緑）
 
 - `reactStrictMode: false` は意図的（Leaflet互換性のため変更しない）
 - Supabase Storageの画像URLは `*.supabase.co` ドメイン（`next.config.js` の `remotePatterns` に設定済み）
+- **入力データファイルをリポジトリに載せない**：CSV などの投入・インポート用データ（店舗リスト、出店者・アカウントの一覧、パスワードを含むファイル、個人情報を含むデータ）はコミットしない。代わりに、一時的なマイグレーションまたは one-off スクリプトでデータベースへ直接投入し、投入後にそのファイルを削除する。リポジトリに残してよいのは、コードが必要とする小さく個人情報を含まない参照データだけ。コミットしたものは git 履歴に残り消せないため、個人情報がないことを確認してからコミットする
 
 ## AI チーム（役割別エージェント）の積極活用
 

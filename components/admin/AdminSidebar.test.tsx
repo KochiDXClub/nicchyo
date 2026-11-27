@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { vi } from "vitest";
 import { AdminSidebar } from "./AdminSidebar";
 
@@ -39,8 +39,10 @@ describe("AdminSidebar（ConsoleSidebar で描く管理画面のサイドバー�
   });
 
   it("受信トレイに新着の件数を出し、0件なら出さない", () => {
+    // サブ一覧（PC）と、モバイルの一覧の両方に同じ項目があるので、サブ一覧の中を見る
     const { unmount } = renderSidebar();
-    expect(screen.getByLabelText("受信トレイ 3件")).toBeInTheDocument();
+    const sub = within(screen.getByRole("complementary", { name: "ホームのサブメニュー" }));
+    expect(sub.getByLabelText("受信トレイ 3件")).toBeInTheDocument();
     unmount();
 
     inboxTotal = 0;
@@ -50,11 +52,23 @@ describe("AdminSidebar（ConsoleSidebar で描く管理画面のサイドバー�
 
   it("受信トレイの中のタブ（通報）を開いているときも、受信トレイを選択中にしてロールの色の縦線を出す", () => {
     renderSidebar();
-    const inbox = screen.getByRole("link", { name: /受信トレイ/ });
+    const sub = within(screen.getByRole("complementary", { name: "ホームのサブメニュー" }));
+    const inbox = sub.getByRole("link", { name: /受信トレイ/ });
 
     expect(inbox).toHaveAttribute("aria-current", "page");
     expect(inbox.querySelector(".bg-red-500")).not.toBeNull();
-    expect(screen.getByRole("link", { name: "ダッシュボード" })).not.toHaveAttribute("aria-current");
+    expect(sub.getByRole("link", { name: "ダッシュボード" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("左の列には、見られるメインを1つずつ出す（サブの項目は並べない）", () => {
+    renderSidebar();
+    const rail = screen.getByRole("navigation", { name: "管理メニュー" });
+    const home = within(rail).getByRole("link", { name: /^ホーム/ });
+    expect(home).toHaveAttribute("aria-current", "page");
+    // 左の列はメインの数（ホーム・分析・設定・データ管理・マップ編集の5つ）だけ並ぶ
+    const railList = rail.querySelector("ul")!;
+    expect(railList.querySelectorAll(":scope > li")).toHaveLength(5);
+    expect(railList.querySelector('a[href="/admin/map-edit"]')).not.toBeNull();
   });
 
   it("スマホ用の開閉ボタンを出す", () => {

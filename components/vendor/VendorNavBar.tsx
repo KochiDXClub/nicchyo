@@ -103,7 +103,7 @@ export default function VendorNavBar() {
 
       {/* ── 下部バー ─────────────────────────────────────── */}
       <nav
-        className={`fixed bottom-0 left-0 right-0 z-[9997] border-t border-slate-200/60 bg-white/90 text-sm leading-none shadow-sm backdrop-blur-md ${
+        className={`fixed bottom-0 left-0 right-0 z-[9997] border-t border-line bg-white/90 text-sm leading-none shadow-sm backdrop-blur-md ${
           inVendorConsole ? "lg:hidden" : ""
         }`}
         style={{ paddingBottom: "var(--safe-bottom, 0px)" }}

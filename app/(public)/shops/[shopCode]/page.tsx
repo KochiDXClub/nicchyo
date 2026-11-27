@@ -3,7 +3,7 @@ import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import { readPublicLegacyIdentities } from "@/lib/shops/publicIdentity.server";
 import { headers } from "next/headers";
-import { formatShopIdToCode, normalizeShopCodeToId } from "@/lib/shops/route";
+import { normalizeShopCodeToId } from "@/lib/shops/route";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { SITE_URL } from "@/lib/constants";
 import { resolveShopImage } from "@/lib/shopImages";
@@ -18,6 +18,11 @@ type ShopPageProps = {
     shopCode: string;
   }>;
 };
+
+/** 店舗ページの表示用コード。旧番号は3桁のまま（確認済みなら下で新しい URL へ移す）。 */
+function pageShopCode(shopId: number): string {
+  return shopId <= 999 ? String(shopId).padStart(3, "0") : String(shopId);
+}
 
 /**
  * 地図の配置とは独立した公開店舗プロフィールを取る。
@@ -62,8 +67,7 @@ export async function generateMetadata({ params }: ShopPageProps): Promise<Metad
   const shopId = normalizeShopCodeToId(shopCode);
   if (shopId === null) return {};
 
-  const code = formatShopIdToCode(shopId);
-  if (!code) return {};
+  const code = pageShopCode(shopId);
 
   const resolvedId = await resolvePublicId(shopId);
   const shop = resolvedId === null ? null : await fetchShop(resolvedId);
@@ -111,11 +115,7 @@ export default async function ShopPage({ params }: ShopPageProps) {
     notFound();
   }
 
-  const normalizedCode = formatShopIdToCode(shopId);
-
-  if (normalizedCode === null) {
-    notFound();
-  }
+  const normalizedCode = pageShopCode(shopId);
 
   const resolvedId = await resolvePublicId(shopId);
   if (resolvedId !== null && resolvedId !== shopId) redirect(`/shops/${resolvedId}`);

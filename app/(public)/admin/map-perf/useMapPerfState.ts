@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { BenchmarkReport } from "@/lib/perf/mapBenchmark";
+import type { BenchmarkReport, NicchyoMapBench } from "@/lib/perf/mapBenchmark";
 import { METRIC_DEFS, computeMetrics, median, type MetricKey, type MetricValues } from "@/lib/perf/metrics";
 import type { BuildInfo } from "@/lib/perf/buildInfo";
 import {
@@ -9,7 +9,6 @@ import {
   type MapFeatureFlagKey,
   type MapFeatureFlags,
 } from "@/lib/mapFeatureFlags";
-import type { NicchyoMapBench } from "@/app/(public)/map/components/MapPerfBridge";
 import { envLabel, fmtDate, shortSha, type AbVariantResult, type RunRow } from "./MapPerfPieces";
 
 export const VIEWPORTS = [

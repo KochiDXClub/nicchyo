@@ -3,6 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useEffect, useRef } from "react";
 import { Sparkles } from "lucide-react";
 import GrandmaAvatar from "@/app/(public)/consult/components/GrandmaAvatar";
 import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCharacters";
@@ -31,6 +32,14 @@ export default function VendorStorePage() {
   const reduceMotion = useReducedMotion();
   const studio = useStoreStudio(user?.vendorId ?? null);
   const { snapshot, groups, answeredCount, total, isComplete } = studio;
+
+  // /my-shop/ask から来た（?continue=1）ときは、答えを読み込んだあとに「続きを答える」を開く。一度だけ
+  const continueHandled = useRef(false);
+  useEffect(() => {
+    if (continueHandled.current || !snapshot) return;
+    continueHandled.current = true;
+    if (new URLSearchParams(window.location.search).get("continue") === "1") studio.startQueue();
+  }, [snapshot, studio]);
 
   const progress = total > 0 ? answeredCount / total : 0;
 

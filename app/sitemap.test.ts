@@ -24,13 +24,12 @@ describe("sitemap", () => {
     fetchPublicMarketBySlug.mockReset().mockResolvedValue(null);
   });
 
-  it("公開店舗（fetchPublicShops）を 3 桁コードの URL として載せる", async () => {
-    fetchPublicShops.mockResolvedValue([{ id: 1 }, { id: 350 }, { id: 999 }]);
+  it("公開店舗（fetchPublicShops）を店舗ID（1000以上）の URL として載せ、旧番号（3桁）は載せない", async () => {
+    fetchPublicShops.mockResolvedValue([{ id: 1 }, { id: 350 }, { id: 1000 }, { id: 1999 }]);
     const urls = (await sitemap()).map((entry) => entry.url);
-    expect(urls.some((u) => u.endsWith("/shops/001"))).toBe(true);
-    // 旧実装は store_number 300 までで切っていた
-    expect(urls.some((u) => u.endsWith("/shops/350"))).toBe(true);
-    expect(urls.some((u) => u.endsWith("/shops/999"))).toBe(true);
+    expect(urls.some((u) => u.endsWith("/shops/1000"))).toBe(true);
+    expect(urls.some((u) => u.endsWith("/shops/1999"))).toBe(true);
+    expect(urls.some((u) => /\/shops\/(001|350)$/.test(u))).toBe(false);
   });
   it("次の日曜に出店しない公開店舗もサイトマップに残す", async () => {
     fetchPublicShops.mockResolvedValue([{ id: 1001, hasMapLocation: false, nextMarketStatus: "not_scheduled" }]);
@@ -41,8 +40,7 @@ describe("sitemap", () => {
   it("公開店舗IDを載せ、不正な番号は載せない", async () => {
     fetchPublicShops.mockResolvedValue([{ id: 0 }, { id: 1000 }, { id: 1.5 }, { id: 2 }]);
     const urls = (await sitemap()).map((entry) => entry.url).filter((u) => u.includes("/shops/"));
-    expect(urls).toHaveLength(2);
-    expect(urls).toContainEqual(expect.stringMatching(/\/shops\/002$/));
+    expect(urls).toHaveLength(1);
     expect(urls).toContainEqual(expect.stringMatching(/\/shops\/1000$/));
   });
 
