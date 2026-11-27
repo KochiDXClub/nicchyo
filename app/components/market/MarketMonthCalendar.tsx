@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   formatEventDate,
@@ -11,7 +11,7 @@ import {
   getUpcomingSundayIso,
   toIsoDate,
   type MarketDayStatus,
-  type MarketEvent as PublicMarketEvent,
+  type MarketEvent,
 } from "@/lib/market/calendar";
 import {
   buildMonthGrid,
@@ -19,8 +19,6 @@ import {
   shiftMonth,
   type MonthDayTone,
 } from "@/lib/market/monthCalendar";
-import type { MarketEvent } from "@/app/api/admin/events/route";
-import { toPublicEvent } from "./EventRow";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -32,34 +30,49 @@ const TONE_CLASS: Record<MonthDayTone, string> = {
   highlight: "bg-nicchyo-accent text-nicchyo-ink",
 };
 
-type Props = {
-  events: MarketEvent[];
+type Props<T extends MarketEvent> = {
+  events: T[];
   days: { market_date: string; status: string }[];
-  /** 日を開いて、その日曜の一覧カードを開きにいく */
-  onOpenDay: (dateIso: string) => void;
+  /**
+   * データを持っている日付の範囲（YYYY-MM-DD、両端を含む）。
+   * 来訪者向けは取得した期間だけを確かな情報として塗り、範囲外の日曜は「未定」として空けて描く。
+   * 指定しないときは全ての日曜を通常どおり描く（運営側）。
+   */
+  knownRange?: { from: string; to: string };
+  /** 日を開いて、その日曜の一覧カードへ移動する。指定がなければボタンを出さない */
+  onOpenDay?: (dateIso: string) => void;
+  /** 予定ごとに出す追加の印（運営側の公開・非公開など） */
+  renderEventStatus?: (event: T) => ReactNode;
 };
 
 /**
- * 運営の日曜市カレンダーの月表示。
+ * 日曜市の月カレンダー。運営の画面と来訪者のカレンダーで同じ見た目を使う。
  * 開催日（日曜）を色で示し、中止・休市は赤で塗る。予定がある日は件数を文字で出し、
- * タップするとその日の予定を下に出す（編集は一覧カードで行う）。
+ * タップするとその日の予定を下に出す。どちらの画面でも編集はできない（編集は運営の一覧カードで行う）。
  */
-export default function MarketMonthCalendar({ events, days, onOpenDay }: Props) {
+export default function MarketMonthCalendar<T extends MarketEvent>({
+  events,
+  days,
+  knownRange,
+  onOpenDay,
+  renderEventStatus,
+}: Props<T>) {
   const todayIso = toIsoDate(new Date());
   const initial = getUpcomingSundayIso().slice(0, 7);
   const [viewYear, setViewYear] = useState(Number(initial.slice(0, 4)));
   const [viewMonth, setViewMonth] = useState(Number(initial.slice(5, 7)));
   const [selectedIso, setSelectedIso] = useState<string | null>(null);
 
-  const publicEvents = useMemo(() => events.map(toPublicEvent), [events]);
   const weeks = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
   const shift = (delta: number) => {
     const next = shiftMonth(viewYear, viewMonth, delta);
     setViewYear(next.year);
     setViewMonth(next.month);
   };
+  const isKnown = (dateIso: string) =>
+    !knownRange || (dateIso >= knownRange.from && dateIso <= knownRange.to);
 
-  const selectedInfo = selectedIso ? getMonthDayInfo(selectedIso, publicEvents, days) : null;
+  const selectedInfo = selectedIso && isKnown(selectedIso) ? getMonthDayInfo(selectedIso, events, days) : null;
   const selectedEvents = selectedInfo
     ? events.filter((event) => selectedInfo.events.some((e) => e.id === event.id))
     : [];
@@ -101,13 +114,15 @@ export default function MarketMonthCalendar({ events, days, onOpenDay }: Props) 
           if (!cell.inMonth) {
             return <span key={cell.dateIso} className="min-h-14 bg-white" aria-hidden />;
           }
-          const info = getMonthDayInfo(cell.dateIso, publicEvents, days);
-          const count = info.events.length;
+          const known = isKnown(cell.dateIso);
+          const info = known ? getMonthDayInfo(cell.dateIso, events, days) : null;
+          const count = info ? info.events.length : 0;
           const isToday = cell.dateIso === todayIso;
           const isSelected = cell.dateIso === selectedIso;
-          const status: MarketDayStatus | null = info.status;
+          const status: MarketDayStatus | null = info ? info.status : null;
+          const tone = info ? info.tone : "none";
           const base = `flex min-h-14 flex-col items-center gap-0.5 px-0.5 py-1 text-[13px] ${
-            cell.isMarketDay ? TONE_CLASS[info.tone] : "bg-white text-nicchyo-ink/45"
+            cell.isMarketDay && known ? TONE_CLASS[tone] : "bg-white text-nicchyo-ink/45"
           }`;
           const content = (
             <>
@@ -123,7 +138,7 @@ export default function MarketMonthCalendar({ events, days, onOpenDay }: Props) 
             </>
           );
 
-          if (!cell.isMarketDay) {
+          if (!cell.isMarketDay || !known) {
             return (
               <span key={cell.dateIso} className={base}>
                 {content}
@@ -181,13 +196,15 @@ export default function MarketMonthCalendar({ events, days, onOpenDay }: Props) 
                 </span>
               )}
             </p>
-            <button
-              type="button"
-              onClick={() => onOpenDay(selectedInfo.dateIso)}
-              className="rounded-lg bg-nicchyo-ink/5 px-3 py-1.5 text-xs font-semibold text-nicchyo-ink hover:bg-nicchyo-ink/10"
-            >
-              この日のカードを開く
-            </button>
+            {onOpenDay && (
+              <button
+                type="button"
+                onClick={() => onOpenDay(selectedInfo.dateIso)}
+                className="rounded-lg bg-nicchyo-ink/5 px-3 py-1.5 text-xs font-semibold text-nicchyo-ink hover:bg-nicchyo-ink/10"
+              >
+                この日のカードを開く
+              </button>
+            )}
           </div>
 
           {selectedEvents.length === 0 ? (
@@ -195,7 +212,7 @@ export default function MarketMonthCalendar({ events, days, onOpenDay }: Props) 
           ) : (
             <ul className="mt-2 divide-y divide-line">
               {selectedEvents.map((event) => (
-                <DayEventItem key={event.id} event={event} />
+                <MonthDayEventItem key={event.id} event={event} renderEventStatus={renderEventStatus} />
               ))}
             </ul>
           )}
@@ -205,21 +222,20 @@ export default function MarketMonthCalendar({ events, days, onOpenDay }: Props) 
   );
 }
 
-function DayEventItem({ event }: { event: MarketEvent }) {
-  const publicEvent: PublicMarketEvent = toPublicEvent(event);
-  const { label, emoji } = getCategoryPresentation(publicEvent.category);
+function MonthDayEventItem<T extends MarketEvent>({
+  event,
+  renderEventStatus,
+}: {
+  event: T;
+  renderEventStatus?: (event: T) => ReactNode;
+}) {
+  const { label, emoji } = getCategoryPresentation(event.category);
   const time = formatEventTime(event.start_time, event.end_time);
-  const period = formatEventPeriod(publicEvent);
+  const period = formatEventPeriod(event);
   return (
     <li className="py-2">
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        <span
-          className={`rounded-full px-2 py-0.5 font-semibold ${
-            event.is_published ? "bg-green-100 text-green-800" : "bg-nicchyo-ink/5 text-nicchyo-ink/70"
-          }`}
-        >
-          {event.is_published ? "公開中" : "非公開"}
-        </span>
+        {renderEventStatus?.(event)}
         <span className="rounded-full bg-nicchyo-ink/5 px-2 py-0.5 font-semibold text-nicchyo-ink/70">
           {emoji} {label}
         </span>

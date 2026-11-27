@@ -14,7 +14,7 @@ import { useAdminMarketDays } from "./useAdminMarketDays";
 import { MarketDayStatusEditorForDate, MarketDayStatusChip } from "./MarketDayStatusEditor";
 import { EventRow } from "./EventRow";
 import { EventForm } from "./EventForm";
-import MarketMonthCalendar from "./MarketMonthCalendar";
+import AdminMonthCalendar from "./AdminMonthCalendar";
 
 export default function AdminCalendarPage() {
   const { permissions, isLoading } = useAuth();
@@ -85,7 +85,7 @@ export default function AdminCalendarPage() {
         <div className="flex items-center justify-center py-16 text-nicchyo-ink/55">読み込み中...</div>
       ) : (
         <div className="space-y-3">
-          <MarketMonthCalendar events={e.events} days={d.days} onOpenDay={openDay} />
+          <AdminMonthCalendar events={e.events} days={d.days} onOpenDay={openDay} />
 
           {e.sundays.map(({ dateIso, weeksAhead, items }) => {
             const isExpanded = expandedDates.has(dateIso);

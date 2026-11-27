@@ -3,7 +3,7 @@ import SiteGuideLink from "@/app/components/SiteGuideLink";
 import type { Metadata } from "next";
 import NavigationBar from "../../components/NavigationBar";
 import MarketCalendarView from "./components/MarketCalendarView";
-import { getMarketCalendarDates, PUBLIC_CALENDAR_WEEKS } from "@/lib/market/calendar";
+import { addDaysToIso, getMarketCalendarDates, PUBLIC_CALENDAR_WEEKS } from "@/lib/market/calendar";
 import { loadPublicMarketCalendar } from "@/lib/market/calendar.server";
 import { PageContainer, PageShell } from "@/components/ui";
 import { findNextMarketDate } from "./marketFilter";
@@ -20,6 +20,20 @@ export default async function MarketCalendarPage() {
   const calendar = await loadPublicMarketCalendar().catch(() => null);
   const dates = calendar ? getMarketCalendarDates(calendar, PUBLIC_CALENDAR_WEEKS.full) : [];
   const next = findNextMarketDate(dates);
+  // 日曜市の月カレンダー。取得できた期間だけを確かな情報として塗る（それ以外の日曜は未定）
+  const sundayMarket = calendar?.markets.find((market) => market.weekday === 0);
+  const monthCalendar =
+    calendar && sundayMarket
+      ? {
+          marketId: sundayMarket.id,
+          events: sundayMarket.events,
+          days: sundayMarket.days,
+          knownRange: {
+            from: calendar.todayIso,
+            to: addDaysToIso(calendar.todayIso, PUBLIC_CALENDAR_WEEKS.landing * 7 - 1),
+          },
+        }
+      : null;
   const title = next?.marketName ? "市の開催カレンダー" : "日曜市カレンダー";
 
   const heading = (
@@ -40,7 +54,7 @@ export default async function MarketCalendarPage() {
 
   return (
     <PageShell as="main" topNav>
-      <MarketCalendarView heading={heading} dates={dates} notice={notice} />
+      <MarketCalendarView heading={heading} dates={dates} notice={notice} monthCalendar={monthCalendar} />
 
       <PageContainer width="narrow">
         <p className="mt-6 text-center text-[11px] leading-relaxed text-nicchyo-ink/40">

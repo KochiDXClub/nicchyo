@@ -5,7 +5,8 @@ import MarketStatusCalendar from "@/app/components/market/MarketStatusCalendar";
 import UpcomingMarketDates from "@/app/components/market/UpcomingMarketDates";
 import { PageContainer } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
-import type { MarketCalendarDate } from "@/lib/market/calendar";
+import MarketMonthCalendar from "@/app/components/market/MarketMonthCalendar";
+import type { MarketCalendarDate, MarketDay, MarketEvent } from "@/lib/market/calendar";
 import { filterDatesByMarket, findNextMarketDate, listMarketOptions } from "../marketFilter";
 
 type Props = {
@@ -14,6 +15,13 @@ type Props = {
   dates: MarketCalendarDate[];
   /** 帯の中、一覧の前に出す案内（取得の失敗など） */
   notice?: ReactNode;
+  /** 日曜市の月カレンダー。日曜市が見えているときだけ出す */
+  monthCalendar?: {
+    marketId: string;
+    events: MarketEvent[];
+    days: MarketDay[];
+    knownRange: { from: string; to: string };
+  } | null;
 };
 
 /**
@@ -25,7 +33,7 @@ type Props = {
  * - 一覧の行に市の名前を出すのは「すべて」のときだけ（絞り込み中はチップで伝わる）
  * 日曜市だけのときはチップを出さず、これまでどおりの見た目のままにする。
  */
-export default function MarketCalendarView({ heading, dates, notice }: Props) {
+export default function MarketCalendarView({ heading, dates, notice, monthCalendar }: Props) {
   const options = useMemo(() => listMarketOptions(dates), [dates]);
   const [marketId, setMarketId] = useState<string | null>(null);
   const visibleDates = useMemo(() => filterDatesByMarket(dates, marketId), [dates, marketId]);
@@ -65,6 +73,15 @@ export default function MarketCalendarView({ heading, dates, notice }: Props) {
       </div>
 
       <PageContainer width="narrow">
+        {monthCalendar && (marketId === null || marketId === monthCalendar.marketId) && (
+          <div className="pt-6">
+            <MarketMonthCalendar
+              events={monthCalendar.events}
+              days={monthCalendar.days}
+              knownRange={monthCalendar.knownRange}
+            />
+          </div>
+        )}
         <UpcomingMarketDates
           dates={visibleDates}
           showHeading={false}
