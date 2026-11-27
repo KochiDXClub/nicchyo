@@ -7,7 +7,7 @@ import type { Shop, ShopProfile } from "../types/shopData";
 
 // vendors から読む列。基本データの取得と差分の取得(fetchShopDelta)で同じ列を使う
 const VENDOR_COLUMNS =
-  "id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, shop_image_kind, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end" as const;
+  "id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, shop_image_kind, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end, introduction" as const;
 
 export type VendorRow = {
   id: string;
@@ -28,6 +28,7 @@ export type VendorRow = {
   sns_instagram: string | null;
   sns_x: string | null;
   sns_hp: string | null;
+  introduction: string | null;
   business_hours_start: string | null;
   business_hours_end: string | null;
 };
@@ -425,6 +426,7 @@ export function buildVendorProfiles(
         schedule: scheduleStr,
         message: undefined,
         shopStrength: vendor.strength ?? undefined,
+        introduction: vendor.introduction?.trim() || undefined,
         paymentMethods: (vendor.payment_methods ?? []) as string[],
         rainPolicy: vendor.rain_policy ?? undefined,
         activePosts,

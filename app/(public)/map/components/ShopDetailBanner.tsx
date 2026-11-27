@@ -4,7 +4,6 @@ import { useCategorizedShop } from "@/lib/categories/CategoryContext";
 import { memo, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { recordShopView, sourceFromReferrer } from "@/lib/analytics/shopViews";
 import type { CSSProperties, ReactNode } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
@@ -62,8 +61,6 @@ type ShopDetailBannerProps = {
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const OSEKKAI_FALLBACK =
-  "あら、ここのお店、最近行ってないねぇ。今日は何が出ちゅうか、ちょっと見てきてくれん？";
 const BOTTOM_NAV_HEIGHT = 56;
 
 function SectionTitle({ children }: { children: ReactNode }) {
@@ -630,6 +627,14 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             />
           )}
 
+          {/* ── お店の紹介（出店者が書いた平文。空なら出さない） ── */}
+          {shop.introduction && (
+            <section>
+              <SectionTitle>お店の紹介</SectionTitle>
+              <p className="mt-2.5 whitespace-pre-line text-sm leading-relaxed text-nicchyo-ink">{shop.introduction}</p>
+            </section>
+          )}
+
           {/* ── 商品（写真が主役） ──────────────────────────────────────── */}
           <section>
             <div className="mb-2.5 flex items-center justify-between gap-3">
@@ -652,31 +657,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
               onToggleProduct={handleProductTap}
               onOpenPhoto={openPhoto}
             />
-          </section>
-
-          {/* ── お店のこだわり ──────────────────────────────────────────── */}
-          <section>
-            <div className="mb-2.5">
-              <SectionTitle>お店のこだわり</SectionTitle>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="shrink-0">
-                <Image
-                  src="/images/obaasan_transparent.webp"
-                  alt="おせっかいばあちゃん"
-                  width={60}
-                  height={60}
-                  className="h-14 w-14 opacity-80"
-                />
-              </div>
-              <div
-                className="relative w-full rounded-card border px-4 py-3 text-sm leading-relaxed text-nicchyo-ink"
-                style={{ borderColor: theme.border, backgroundColor: theme.bg }}
-              >
-                <span className="absolute -left-2 top-4 h-3.5 w-3.5 rotate-45 border-b border-l" style={{ borderColor: theme.border, backgroundColor: theme.bg }} aria-hidden />
-                <span className="font-semibold">{shop.shopStrength?.trim() || OSEKKAI_FALLBACK}</span>
-              </div>
-            </div>
           </section>
 
           {/* ── AI に相談 ──────────────────────────────────────────────── */}
