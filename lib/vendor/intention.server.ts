@@ -81,6 +81,30 @@ export async function listIntentionPlaces(db: SupabaseClient): Promise<Intention
   return ((data ?? []) as IntentionPlaceRow[]).map(rowToIntentionPlace);
 }
 
+/**
+ * 店舗が今出店している場所（初期選択に使う）。出店場所の登録（vendors.market_place_id）を先に見て、
+ * なければ出店場所の所属（market_place_memberships）から取る。どちらも無ければ null。
+ */
+export async function readVendorCurrentPlaceId(db: SupabaseClient, vendorId: string): Promise<string | null> {
+  const { data: vendor, error: vendorError } = await db
+    .from("vendors")
+    .select("market_place_id")
+    .eq("id", vendorId)
+    .maybeSingle();
+  if (vendorError) throw vendorError;
+  const registered = (vendor as { market_place_id: string | null } | null)?.market_place_id ?? null;
+  if (registered) return registered;
+
+  const { data: membership, error: membershipError } = await db
+    .from("market_place_memberships")
+    .select("location_id")
+    .eq("vendor_id", vendorId)
+    .limit(1)
+    .maybeSingle();
+  if (membershipError) throw membershipError;
+  return (membership as { location_id: string } | null)?.location_id ?? null;
+}
+
 /** 場所が存在するか（保存の前に確かめて、存在しない場所を 400 で返す） */
 export async function intentionPlaceExists(db: SupabaseClient, placeId: string): Promise<boolean> {
   const { data, error } = await db.from("market_locations").select("id").eq("id", placeId).maybeSingle();

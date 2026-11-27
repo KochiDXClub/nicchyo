@@ -14,6 +14,7 @@ import {
   intentionPlaceExists,
   listIntentionPlaces,
   readOwnIntentionResponse,
+  readVendorCurrentPlaceId,
 } from "@/lib/vendor/intention.server";
 
 export const runtime = "nodejs";
@@ -25,7 +26,7 @@ export const dynamic = "force-dynamic";
  */
 const PERMISSION = "store_edit" as const;
 
-/** GET: 受付中の調査と、自分の店舗の回答、選べる場所 */
+/** GET: 受付中の調査と、自分の店舗の回答、選べる場所。currentPlaceId は今出店している場所（初期選択に使う） */
 export async function GET() {
   const auth = await requireVendorContext({ permission: PERMISSION });
   if (!auth.ok) return auth.response;
@@ -37,7 +38,8 @@ export async function GET() {
     const season = await findOpenIntentionSeason(db);
     const response = season ? await readOwnIntentionResponse(db, season.seasonYear, auth.vendorId) : null;
     const places = season ? await listIntentionPlaces(db) : [];
-    return NextResponse.json({ season, response, places, editable: season !== null });
+    const currentPlaceId = season ? await readVendorCurrentPlaceId(db, auth.vendorId) : null;
+    return NextResponse.json({ season, response, places, currentPlaceId, editable: season !== null });
   } catch {
     return NextResponse.json({ error: "読み込めませんでした" }, { status: 500 });
   }

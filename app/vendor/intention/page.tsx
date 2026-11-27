@@ -14,6 +14,8 @@ type LoadState =
       season: IntentionSeason | null;
       response: IntentionResponse | null;
       places: IntentionPlace[];
+      /** 今出店している場所（回答がまだ無いときの初期選択） */
+      currentPlaceId: string | null;
       editable: boolean;
     };
 
@@ -42,7 +44,8 @@ export default function VendorIntentionPage() {
       })
       .then((data) => {
         if (cancelled) return;
-        setPlaceId(data.response?.placeId ?? null);
+        // 回答済みならその場所、まだなら今出店している場所を初期選択にする。そこから自由に選び直せる
+        setPlaceId(data.response?.placeId ?? data.currentPlaceId ?? null);
         setState({ status: "ready", ...data });
       })
       .catch((err: unknown) => {
