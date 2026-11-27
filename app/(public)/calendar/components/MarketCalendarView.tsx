@@ -38,11 +38,14 @@ export default function MarketCalendarView({ heading, dates, notice, monthCalend
   const [marketId, setMarketId] = useState<string | null>(null);
   const visibleDates = useMemo(() => filterDatesByMarket(dates, marketId), [dates, marketId]);
   const next = findNextMarketDate(visibleDates);
+  const showMonth = Boolean(monthCalendar) && (marketId === null || marketId === monthCalendar?.marketId);
+  // 月カレンダーを出すときは、PC で2列になるよう幅を広げる（スマホは従来どおり1列）
+  const wide = showMonth;
 
   return (
     <>
       <div className="bg-gradient-to-b from-nicchyo-soft-green/25 to-transparent pb-6 pt-safe-top">
-        <PageContainer width="narrow" className="pt-6">
+        <PageContainer width={wide ? "wide" : "narrow"} className="pt-6">
           {heading}
 
           {options.length > 1 && (
@@ -72,22 +75,34 @@ export default function MarketCalendarView({ heading, dates, notice, monthCalend
         </PageContainer>
       </div>
 
-      <PageContainer width="narrow">
-        {monthCalendar && (marketId === null || marketId === monthCalendar.marketId) && (
-          <div className="pt-6">
-            <MarketMonthCalendar
-              events={monthCalendar.events}
-              days={monthCalendar.days}
-              knownRange={monthCalendar.knownRange}
-            />
+      <PageContainer width={wide ? "wide" : "narrow"}>
+        {showMonth && monthCalendar ? (
+          // PC では月カレンダーを左、一覧を右に並べて、画面の横幅を使い切らないようにする
+          <div className="lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-8">
+            <div className="pt-6 lg:sticky lg:top-6">
+              <MarketMonthCalendar
+                events={monthCalendar.events}
+                days={monthCalendar.days}
+                knownRange={monthCalendar.knownRange}
+              />
+            </div>
+            <div className="min-w-0">
+              <UpcomingMarketDates
+                dates={visibleDates}
+                showHeading={false}
+                showStatusSource
+                showMarketName={marketId === null}
+              />
+            </div>
           </div>
+        ) : (
+          <UpcomingMarketDates
+            dates={visibleDates}
+            showHeading={false}
+            showStatusSource
+            showMarketName={marketId === null}
+          />
         )}
-        <UpcomingMarketDates
-          dates={visibleDates}
-          showHeading={false}
-          showStatusSource
-          showMarketName={marketId === null}
-        />
       </PageContainer>
     </>
   );
