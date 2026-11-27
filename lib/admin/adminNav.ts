@@ -115,6 +115,13 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         access: "admin",
       },
       {
+        label: "出店意向調査",
+        href: "/admin/vendor-intention",
+        icon: ClipboardList,
+        description: "来季の出店意向を集める受付期間を作り、開く・閉じる",
+        access: "admin",
+      },
+      {
         label: "旧店舗番号の確認",
         href: "/admin/legacy-shop-identities",
         icon: ClipboardList,

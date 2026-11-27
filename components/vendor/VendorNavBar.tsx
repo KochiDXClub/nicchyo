@@ -14,6 +14,7 @@ import {
   MenuUserRow,
 } from "@/components/navigation/MenuSheet";
 import { VENDOR_HOME_HREF, visibleVendorNavItems } from "./vendorNavItems";
+import { useVendorIntentionOpen } from "./useVendorIntentionOpen";
 
 
 /**
@@ -28,6 +29,7 @@ export default function VendorNavBar() {
   // 下部バーに常設している「連絡」「投稿」は、メニューでは重ねて出さない
   const mainItems = navItems.filter((item) => item.group === "main" && !item.inBottomBar);
   const supportItems = navItems.filter((item) => item.group === "support");
+  const intentionOpen = useVendorIntentionOpen(navItems.some((item) => item.dimWhenClosed));
   const [sheetOpen, setSheetOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -78,7 +80,13 @@ export default function VendorNavBar() {
 
         {/* ─ お店の運営で使うページ ─ */}
         {mainItems.map((item) => (
-          <MenuRow key={item.href} icon={item.icon} label={item.label} onClick={() => go(item.href)} />
+          <MenuRow
+            key={item.href}
+            icon={item.icon}
+            label={item.label}
+            muted={item.dimWhenClosed === true && intentionOpen === false}
+            onClick={() => go(item.href)}
+          />
         ))}
 
         {/* ─ 使い方・設定・マップ ─ */}

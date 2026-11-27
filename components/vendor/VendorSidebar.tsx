@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { House, LogOut, Map as MapIcon } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useVendorIntentionOpen } from "./useVendorIntentionOpen";
 import {
   ConsoleSidebar,
   type ConsoleSidebarAccent,
@@ -34,6 +35,7 @@ export default function VendorSidebar({
   const router = useRouter();
   const { user, permissions, logout } = useAuth();
   const navItems = visibleVendorNavItems(permissions.canShop);
+  const intentionOpen = useVendorIntentionOpen(navItems.some((item) => item.dimWhenClosed));
 
   const toItems = (items: VendorNavItem[]) =>
     items.map((item) => ({
@@ -42,6 +44,7 @@ export default function VendorSidebar({
       icon: item.icon,
       description: item.description,
       isActive: isVendorNavItemCurrent(item.href, pathname),
+      dimmed: item.dimWhenClosed === true && intentionOpen === false,
     }));
 
   const groups: ConsoleSidebarGroup[] = [

@@ -5,6 +5,7 @@ const requireVendorContext = vi.fn();
 const findOpenIntentionSeason = vi.fn();
 const readOwnIntentionResponse = vi.fn();
 const listIntentionPlaces = vi.fn();
+const readVendorCurrentPlaceId = vi.fn();
 const intentionPlaceExists = vi.fn();
 const upsert = vi.fn();
 
@@ -23,6 +24,7 @@ vi.mock("@/lib/vendor/intention.server", () => ({
   findOpenIntentionSeason: (...args: unknown[]) => findOpenIntentionSeason(...args),
   readOwnIntentionResponse: (...args: unknown[]) => readOwnIntentionResponse(...args),
   listIntentionPlaces: (...args: unknown[]) => listIntentionPlaces(...args),
+  readVendorCurrentPlaceId: (...args: unknown[]) => readVendorCurrentPlaceId(...args),
   intentionPlaceExists: (...args: unknown[]) => intentionPlaceExists(...args),
 }));
 vi.mock("@/lib/security/requestGuards", () => ({ requireSameOrigin: () => ({ ok: true }) }));
@@ -55,11 +57,13 @@ beforeEach(() => {
   findOpenIntentionSeason.mockReset();
   readOwnIntentionResponse.mockReset();
   listIntentionPlaces.mockReset();
+  readVendorCurrentPlaceId.mockReset();
   intentionPlaceExists.mockReset();
   upsert.mockReset();
   findOpenIntentionSeason.mockResolvedValue(openSeason);
   readOwnIntentionResponse.mockResolvedValue(null);
   listIntentionPlaces.mockResolvedValue([{ id: PLACE, storeNumber: 12, name: null }]);
+  readVendorCurrentPlaceId.mockResolvedValue(PLACE);
   intentionPlaceExists.mockResolvedValue(true);
 });
 
@@ -125,8 +129,17 @@ describe("出店意向の権限と保存", () => {
     requireVendorContext.mockResolvedValue(allowed);
     findOpenIntentionSeason.mockResolvedValue(null);
     const res = await GET();
-    expect(await res.json()).toEqual({ season: null, response: null, places: [], editable: false });
+    expect(await res.json()).toEqual({ season: null, response: null, places: [], currentPlaceId: null, editable: false });
     expect(readOwnIntentionResponse).not.toHaveBeenCalled();
+    expect(readVendorCurrentPlaceId).not.toHaveBeenCalled();
+  });
+
+  it("GET は今出店している場所を currentPlaceId で返す（初期選択用）", async () => {
+    requireVendorContext.mockResolvedValue(allowed);
+    findOpenIntentionSeason.mockResolvedValue({ seasonYear: 2027, title: "2027年", opensOn: "2026-12-01", closesOn: "2026-12-31" });
+    const res = await GET();
+    expect((await res.json()).currentPlaceId).toBe(PLACE);
+    expect(readVendorCurrentPlaceId).toHaveBeenCalledWith(expect.anything(), OWN_VENDOR);
   });
 
   it("GET は自分の店舗の所属で回答を探す", async () => {
