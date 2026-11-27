@@ -17,7 +17,7 @@ const STATUS_CLASSES: Record<SeasonStatus, string> = {
   closed: "bg-nicchyo-ink/10 text-nicchyo-ink",
 };
 
-const EMPTY_FORM = { seasonYear: "", title: "", opensOn: "", closesOn: "" };
+const EMPTY_FORM = { title: "", opensOn: "", closesOn: "" };
 
 /** 出店意向調査の受付期間（季節）を作る・今すぐ開く・今すぐ閉じる */
 export default function AdminVendorIntentionPage() {
@@ -51,7 +51,6 @@ export default function AdminVendorIntentionPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        seasonYear: Number(form.seasonYear),
         title: form.title,
         opensOn: form.opensOn,
         closesOn: form.closesOn,
@@ -138,10 +137,6 @@ export default function AdminVendorIntentionPage() {
 
         <section aria-labelledby="season-form" className="space-y-3 rounded-lg border bg-white p-4">
           <h2 id="season-form" className="text-lg font-bold">受付期間を作る</h2>
-          <label className="block text-sm font-bold">
-            季節の年（例: 2027）
-            <input type="number" inputMode="numeric" className="mt-1 w-full rounded-lg border px-3 py-2" value={form.seasonYear} onChange={(e) => setForm({ ...form, seasonYear: e.target.value })} min={2000} max={2100} />
-          </label>
           <label className="block text-sm font-bold">
             名前（例: 2027年 来季の出店意向）
             <input className="mt-1 w-full rounded-lg border px-3 py-2" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength={80} />

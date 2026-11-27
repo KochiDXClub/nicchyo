@@ -31,13 +31,13 @@ describe("受付期間の日付と検証", () => {
   });
 
   it("作成の入力を検証する（年・名前・日付）", () => {
-    const valid = { seasonYear: 2027, title: " 2027年 ", opensOn: "2027-01-01", closesOn: "2027-02-01" };
+    const valid = { title: " 2027年 ", opensOn: "2027-01-01", closesOn: "2027-02-01" };
     const parsed = SeasonCreateSchema.safeParse(valid);
     expect(parsed.success).toBe(true);
     expect(parsed.success && parsed.data.title).toBe("2027年");
-
-    expect(SeasonCreateSchema.safeParse({ ...valid, seasonYear: 1999 }).success).toBe(false);
-    expect(SeasonCreateSchema.safeParse({ ...valid, seasonYear: 2027.5 }).success).toBe(false);
+    // 季節の年は開始日の年から決まる（運営は年を入力しない）
+    expect(parsed.success && parsed.data.seasonYear).toBe(2027);
+    expect(SeasonCreateSchema.safeParse({ ...valid, opensOn: "1999-12-31", closesOn: "2000-01-05" }).success).toBe(false);
     expect(SeasonCreateSchema.safeParse({ ...valid, title: "  " }).success).toBe(false);
     expect(SeasonCreateSchema.safeParse({ ...valid, closesOn: "2026-12-31" }).success).toBe(false);
   });

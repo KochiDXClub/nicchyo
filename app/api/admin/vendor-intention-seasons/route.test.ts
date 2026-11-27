@@ -21,7 +21,7 @@ const adminClient = {
     },
   }),
 };
-const validBody = { seasonYear: 2027, title: "2027年", opensOn: "2027-01-01", closesOn: "2027-02-28" };
+const validBody = { title: "2027年", opensOn: "2027-01-01", closesOn: "2027-02-28" };
 const post = (body: unknown = validBody) => {
   guard.mockResolvedValue({ ctx: { adminClient, user: { id: "admin-1", email: null }, role: "admin", ip: null }, body });
   return POST(new Request("https://example.test/api/admin/vendor-intention-seasons", { method: "POST" }));

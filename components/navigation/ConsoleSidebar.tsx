@@ -38,6 +38,8 @@ export type ConsoleSidebarItem = {
   /** ホバーで出す一行説明 */
   description?: string;
   isActive: boolean;
+  /** 薄く出す（受付をしていないなど、今は使えない導線） */
+  dimmed?: boolean;
   /** 右端に添えるもの（新着の件数など） */
   trailing?: ReactNode;
 };
@@ -209,7 +211,7 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
                           }`}
                           aria-hidden="true"
                         />
-                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                        <span className={`min-w-0 flex-1 truncate ${item.dimmed && !item.isActive ? "text-nicchyo-ink/40" : ""}`}>{item.label}</span>
                         {item.trailing != null && <span className="ml-auto">{item.trailing}</span>}
                       </Link>
                     </li>

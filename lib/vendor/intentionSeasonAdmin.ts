@@ -25,13 +25,12 @@ export function validateSeasonWindow(opensOn: string, closesOn: string): string 
   return null;
 }
 
+/**
+ * 季節の作成入力。運営は名前・開始日・締切日だけを入れる。
+ * 季節の年は開始日の年から決める（例: 2026-12-01 開始 → 2026年の季節）。
+ */
 export const SeasonCreateSchema = z
   .object({
-    seasonYear: z
-      .number({ message: "季節の年を数字で入力してください" })
-      .int("季節の年は整数で入力してください")
-      .min(SEASON_YEAR_MIN, `季節の年は${SEASON_YEAR_MIN}年以降にしてください`)
-      .max(SEASON_YEAR_MAX, `季節の年は${SEASON_YEAR_MAX}年までにしてください`),
     title: z
       .string()
       .trim()
@@ -43,6 +42,18 @@ export const SeasonCreateSchema = z
   .superRefine((value, ctx) => {
     const message = validateSeasonWindow(value.opensOn, value.closesOn);
     if (message) ctx.addIssue({ code: "custom", message, path: [isCalendarDate(value.opensOn) ? "closesOn" : "opensOn"] });
+  })
+  .transform((value, ctx) => {
+    const seasonYear = Number(value.opensOn.slice(0, 4));
+    if (seasonYear < SEASON_YEAR_MIN || seasonYear > SEASON_YEAR_MAX) {
+      ctx.addIssue({
+        code: "custom",
+        message: `開始日は${SEASON_YEAR_MIN}年から${SEASON_YEAR_MAX}年の間にしてください`,
+        path: ["opensOn"],
+      });
+      return z.NEVER;
+    }
+    return { ...value, seasonYear };
   });
 
 export type SeasonCreateInput = z.infer<typeof SeasonCreateSchema>;
