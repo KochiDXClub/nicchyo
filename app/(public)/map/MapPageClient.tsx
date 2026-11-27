@@ -30,6 +30,7 @@ import MarketStatusBar from "../../components/market/MarketStatusBar";
 import AnnouncementBanner from "@/components/announcements/AnnouncementBanner";
 import { getMarketCalendarDates } from "@/lib/market/calendar";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
+import type { MarketCalendar } from "@/lib/market/calendar";
 import ShopScanCards from "./components/ShopScanCards";
 import NearbyExploreButton from "./components/NearbyExploreButton";
 import BackToMarketButton, { useBackToMarket } from "./components/BackToMarketButton";
@@ -98,6 +99,8 @@ type MapPageClientProps = {
   people?: Landmark[];
   mapRoute: MapRoute;
   initialMarketId?: string;
+  /** サーバーで読んだ開催情報。あれば初回描画から使い、クライアントからの取得を省く */
+  initialMarketCalendar?: MarketCalendar | null;
   sundayMarketId?: string;
   marketRequested?: boolean;
   /** 管理画面で保存したマップ動作フラグ（未指定なら既定値） */
@@ -118,6 +121,7 @@ export default function MapPageClient({
   people,
   mapRoute,
   initialMarketId,
+  initialMarketCalendar,
   sundayMarketId,
   marketRequested,
   featureFlags,
@@ -305,7 +309,7 @@ export default function MapPageClient({
   }, []);
   const [isShopBannerOpen, setIsShopBannerOpen] = useState(false);
   // 開催ステータス。マップでは平常時（開催）は出さず、中止・臨時休市・特別開催のときだけバーを出す
-  const { calendar: marketCalendar, loading: marketCalendarLoading, error: marketCalendarError } = useMarketCalendar();
+  const { calendar: marketCalendar, loading: marketCalendarLoading, error: marketCalendarError } = useMarketCalendar(initialMarketCalendar);
   const marketDate = useMemo(
     () => getMarketCalendarDates(marketCalendar, 1, { includeEventDates: false }).find((date) => date.marketId === initialMarketId),
     [initialMarketId, marketCalendar]
