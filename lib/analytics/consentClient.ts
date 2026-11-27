@@ -161,11 +161,17 @@ export function loadGA(): void {
   }
   const w = window as Window & GtagWindow;
   w.dataLayer = w.dataLayer ?? [];
-  w.gtag = function (...args: unknown[]) {
-    w.dataLayer!.push(args);
+  // gtag.js は arguments オブジェクトを積まれたときだけ命令として扱う。
+  // 配列（...args）を積むと何も送られないので、Google 公式の形のままにする
+  w.gtag = function () {
+    // eslint-disable-next-line prefer-rest-params
+    w.dataLayer!.push(arguments);
   };
   w.gtag("js", new Date());
-  // QR・招待リンクの URL にはトークンが入っているので、最初の page_view にも載せない
-  const secret = isSecretTokenPath(window.location.pathname);
-  w.gtag("config", gaId, secret ? { send_page_view: false } : { page_location: trackedPageLocation() });
+  // QR・招待リンクの URL にはトークンが入っているので、GA が自動で送るイベントにも載せない
+  const pageLocation = isSecretTokenPath(window.location.pathname)
+    ? `${window.location.origin}/`
+    : trackedPageLocation();
+  // page_view は PageVisitTracker が画面ごとに送る。ここでも送ると最初の1回が二重になる
+  w.gtag("config", gaId, { send_page_view: false, page_location: pageLocation });
 }

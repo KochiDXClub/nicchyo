@@ -24,6 +24,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const findConfig = () =>
+  (w.dataLayer as ArrayLike<unknown>[]).find((command) => command[0] === "config");
+
 describe("loadGA", () => {
   it("停止設定が無ければ gtag.js を読み込む", async () => {
     const { loadGA } = await load();
@@ -48,13 +51,39 @@ describe("loadGA", () => {
     expect(document.getElementById("ga-script")).toBeNull();
   });
 
-  it("最初の page_view の page_location に ?q= の検索語を載せない", async () => {
+  it("gtag の命令は arguments オブジェクトとして積む（配列だと gtag.js が無視する）", async () => {
+    const { loadGA } = await load();
+    loadGA();
+    const commands = w.dataLayer as ArrayLike<unknown>[];
+    expect(commands.length).toBeGreaterThan(0);
+    for (const command of commands) {
+      expect(Object.prototype.toString.call(command)).toBe("[object Arguments]");
+    }
+  });
+
+  it("秘密のトークンが入るページでは、URL を page_location に載せない", async () => {
+    window.history.replaceState(null, "", "/claim/secret-token");
+    try {
+      const { loadGA } = await load();
+      loadGA();
+      expect(findConfig()?.[2]).toEqual({
+        send_page_view: false,
+        page_location: `${window.location.origin}/`,
+      });
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
+  });
+
+  it("config の page_location に ?q= の検索語を載せず、page_view は自動で送らない", async () => {
     window.history.replaceState(null, "", "/map?q=%E5%B1%B1%E7%94%B0&guide=menu");
     try {
       const { loadGA } = await load();
       loadGA();
-      const config = (w.dataLayer as unknown[][]).find((args) => args[0] === "config");
-      expect(config?.[2]).toEqual({ page_location: `${window.location.origin}/map?guide=menu` });
+      expect(findConfig()?.[2]).toEqual({
+        send_page_view: false,
+        page_location: `${window.location.origin}/map?guide=menu`,
+      });
     } finally {
       window.history.replaceState(null, "", "/");
     }
