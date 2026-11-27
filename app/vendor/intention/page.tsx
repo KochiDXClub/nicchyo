@@ -135,7 +135,7 @@ export default function VendorIntentionPage() {
   return (
     <PageShell bottomNav={false}>
       <PageTitle title="出店したい場所" />
-      <PageContainer className="space-y-6">
+      <PageContainer width="wide" className="space-y-6">
         {state.status === "loading" && <CenteredLoading />}
 
         {state.status === "error" && (
@@ -167,13 +167,14 @@ export default function VendorIntentionPage() {
               </div>
             </Surface>
 
+            <div className="space-y-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] lg:items-start lg:gap-8 lg:space-y-0">
             <fieldset className="space-y-2">
               <legend className="text-base font-bold text-nicchyo-ink">丁目</legend>
               <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
                 {CHOMES.map((item) => (
                   <label
                     key={item.id}
-                    className="flex min-h-12 cursor-pointer flex-col items-center justify-center gap-1 rounded-btn bg-white px-1 text-sm font-bold text-nicchyo-ink ring-1 ring-line has-[:checked]:ring-2 has-[:checked]:ring-nicchyo-primary"
+                    className="flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-btn bg-white px-1 text-sm font-bold text-nicchyo-ink ring-1 ring-line transition hover:ring-nicchyo-primary/60 has-[:checked]:ring-2 has-[:checked]:ring-nicchyo-primary lg:min-h-16"
                   >
                     <input
                       type="radio"
@@ -211,7 +212,7 @@ export default function VendorIntentionPage() {
                   {placesInChome.map((place) => (
                     <label
                       key={place.id}
-                      className="flex min-h-11 cursor-pointer items-center justify-center rounded-btn bg-white px-2 text-sm text-nicchyo-ink ring-1 ring-line has-[:checked]:font-bold has-[:checked]:ring-2 has-[:checked]:ring-nicchyo-primary"
+                      className="flex min-h-12 cursor-pointer items-center justify-center rounded-btn bg-white px-2 text-sm text-nicchyo-ink ring-1 ring-line transition hover:ring-nicchyo-primary/60 has-[:checked]:font-bold has-[:checked]:ring-2 has-[:checked]:ring-nicchyo-primary"
                     >
                       <input
                         type="radio"
@@ -228,6 +229,8 @@ export default function VendorIntentionPage() {
               )}
             </fieldset>
 
+            </div>
+
             {saveMessage && (
               <p
                 role={saveMessage.tone === "error" ? "alert" : "status"}
@@ -241,7 +244,7 @@ export default function VendorIntentionPage() {
               </p>
             )}
 
-            <Button type="submit" disabled={saving || !state.editable || chome === null} className="w-full">
+            <Button type="submit" disabled={saving || !state.editable || chome === null} className="w-full lg:w-auto lg:min-w-64 lg:self-end">
               {saving ? "保存しています…" : state.response ? "この内容で保存" : "この内容で回答する"}
             </Button>
           </form>
