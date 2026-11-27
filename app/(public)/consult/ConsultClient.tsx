@@ -20,6 +20,7 @@ import type { Shop } from "../map/data/shops";
 import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
 import { useT } from "@/lib/i18n/LocaleContext";
 import { readConsultAskResponse } from "./utils/readConsultAskResponse";
+import { recordFeatureUsage } from "@/lib/analytics/featureUsage";
 
 const PREFERRED_CHARACTER_STORAGE_KEY = "nicchyo-consult-preferred-character";
 
@@ -40,6 +41,10 @@ export default function ConsultClient() {
   const [isHistorySidebarOpen, setIsHistorySidebarOpen] = useState(false);
   // 送信中の相談。画面を離れるときに止めて、サーバー側の OpenAI 受信も止める
   const inFlightAsksRef = useRef(new Set<AbortController>());
+
+  useEffect(() => {
+    recordFeatureUsage("consult");
+  }, []);
 
   useEffect(() => {
     const inFlight = inFlightAsksRef.current;
