@@ -13,6 +13,7 @@ import {
   type MarketDayStatus,
   type MarketEvent,
 } from "@/lib/market/calendar";
+import { cn } from "@/lib/utils/cn";
 import {
   buildMonthGrid,
   getMonthDayInfo,
@@ -43,6 +44,8 @@ type Props<T extends MarketEvent> = {
   onOpenDay?: (dateIso: string) => void;
   /** 予定ごとに出す追加の印（運営側の公開・非公開など） */
   renderEventStatus?: (event: T) => ReactNode;
+  /** 置く画面に合わせた外枠の上書き（余白・角丸など） */
+  className?: string;
 };
 
 /**
@@ -56,6 +59,7 @@ export default function MarketMonthCalendar<T extends MarketEvent>({
   knownRange,
   onOpenDay,
   renderEventStatus,
+  className,
 }: Props<T>) {
   const todayIso = toIsoDate(new Date());
   const initial = getUpcomingSundayIso().slice(0, 7);
@@ -78,7 +82,10 @@ export default function MarketMonthCalendar<T extends MarketEvent>({
     : [];
 
   return (
-    <section aria-label="月カレンダー" className="mb-4 rounded-btn border border-line bg-white p-3 shadow-sm">
+    <section
+      aria-label="月カレンダー"
+      className={cn("mb-4 rounded-btn border border-line bg-white p-3 shadow-sm", className)}
+    >
       <div className="mb-2 flex items-center justify-between">
         <button
           type="button"
