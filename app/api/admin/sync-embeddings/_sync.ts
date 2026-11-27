@@ -1,7 +1,4 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { AdminApiContext } from "@/lib/auth/requireAdminApi";
-import { parseCsv } from "@/lib/csv/parseCsv";
 import { requestEmbeddings } from "@/lib/ai/openaiFetch";
 import { fetchAssignmentRows, fetchLocationRows, fetchProductRows } from "@/lib/shops/baseRowQueries";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
@@ -41,6 +38,14 @@ interface ProductRow {
 interface ContentRow {
   vendor_id: string;
   body: string | null;
+}
+
+interface KnowledgeEntryRow {
+  id: string;
+  category: string | null;
+  title: string | null;
+  content: string | null;
+  image_url: string | null;
 }
 
 interface EmbeddingRow {
@@ -247,21 +252,40 @@ export async function syncVendorEmbeddings({ supabase, apiKey, runId, signal, re
   }
 }
 
-export async function syncKnowledgeEmbeddings({ supabase, apiKey, runId, signal, recordProcessed }: SyncOptions) {
-  const csv = await readFile(join(process.cwd(), "data", "knowledge.csv"), "utf8");
-  const [header = [], ...rows] = parseCsv(csv);
-  const columns = ["id", "category", "title", "content", "image_url"] as const;
-  const indices = columns.map((key) => header.indexOf(key));
-  if (indices.includes(-1) || rows.length === 0) {
-    throw new Error("The knowledge CSV is empty or has an invalid header.");
-  }
+// 知識データの検証（旧 CSV と同じ条件: id と content は必須、id は重複不可）
+export function toKnowledgeEntries(rows: KnowledgeEntryRow[]) {
+  if (rows.length === 0) throw new Error("The knowledge_entries table is empty.");
   const ids = new Set<string>();
-  const entries = rows.map((row) => {
-    const [id, category, title, content, imageUrl] = indices.map((index) => row[index]?.trim() ?? "");
-    if (!id || !content || ids.has(id)) throw new Error("Invalid or duplicate knowledge CSV entry.");
+  return rows.map((row) => {
+    const id = row.id?.trim() ?? "";
+    const content = row.content?.trim() ?? "";
+    if (!id || !content || ids.has(id)) throw new Error("Invalid or duplicate knowledge entry.");
     ids.add(id);
-    return { id, category, title, content, image_url: imageUrl || null };
+    return {
+      id,
+      category: row.category?.trim() ?? "",
+      title: row.title?.trim() ?? "",
+      content,
+      image_url: row.image_url?.trim() || null,
+    };
   });
+}
+
+export async function syncKnowledgeEmbeddings({ supabase, apiKey, runId, signal, recordProcessed }: SyncOptions) {
+  // id は一意で、表示と同じ並び（kb-001 …）で読む。ページ境界で行が欠けないよう order を必ず付ける。
+  const knowledge = await fetchAllRows<KnowledgeEntryRow>(
+    (from, to) =>
+      supabase
+        .from("knowledge_entries")
+        .select("id, category, title, content, image_url")
+        .order("id", { ascending: true })
+        .range(from, to) as unknown as PromiseLike<{ data: KnowledgeEntryRow[] | null; error: { message: string } | null }>,
+    { label: "knowledge_entries" }
+  );
+  if (knowledge.error || knowledge.truncated) {
+    throw new Error(`knowledge_entries: ${knowledge.error?.message ?? "source rows were truncated"}`);
+  }
+  const entries = toKnowledgeEntries(knowledge.data);
 
   const batchSize = 50;
   for (let offset = 0; offset < entries.length; offset += batchSize) {
