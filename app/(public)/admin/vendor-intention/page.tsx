@@ -2,8 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
+import IntentionPointMap, { type IntentionMapPoint } from "@/components/intention/IntentionPointMap";
 import type { IntentionSeason } from "@/lib/vendor/intention";
 import { seasonStatus, type SeasonStatus } from "@/lib/vendor/intentionSeasonAdmin";
+import type { IntentionSummary } from "@/lib/vendor/intentionSummary";
+
+type SummaryState =
+  | { status: "idle" }
+  | { status: "loading"; seasonYear: number }
+  | { status: "error"; seasonYear: number; message: string }
+  | { status: "ready"; seasonYear: number; summary: IntentionSummary };
 
 const STATUS_LABELS: Record<SeasonStatus, string> = {
   upcoming: "受付前",
@@ -27,6 +35,7 @@ export default function AdminVendorIntentionPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [summary, setSummary] = useState<SummaryState>({ status: "idle" });
 
   const load = useCallback(async () => {
     const response = await fetch("/api/admin/vendor-intention-seasons", { cache: "no-store" });
@@ -42,6 +51,22 @@ export default function AdminVendorIntentionPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** 季節の集計（丁目ごと・場所ごと）。運営は伏せずに件数を見る */
+  const loadSummary = async (seasonYear: number) => {
+    setSummary({ status: "loading", seasonYear });
+    try {
+      const response = await fetch(`/api/admin/vendor-intention-seasons/${seasonYear}/summary`, { cache: "no-store" });
+      const body = (await response.json().catch(() => ({}))) as { summary?: IntentionSummary; error?: string };
+      if (!response.ok || !body.summary) {
+        setSummary({ status: "error", seasonYear, message: body.error ?? "集計を読み込めませんでした" });
+        return;
+      }
+      setSummary({ status: "ready", seasonYear, summary: body.summary });
+    } catch {
+      setSummary({ status: "error", seasonYear, message: "集計を読み込めませんでした" });
+    }
+  };
 
   const submit = async () => {
     setBusy(true);
@@ -117,6 +142,9 @@ export default function AdminVendorIntentionPage() {
                       </p>
                     </div>
                     <div className="flex gap-2">
+                      <button type="button" disabled={busy} className="rounded-lg border px-3 py-1 text-sm font-bold disabled:opacity-50" onClick={() => void loadSummary(season.seasonYear)}>
+                        集計を見る
+                      </button>
                       {status !== "open" && (
                         <button type="button" disabled={busy} className="rounded-lg bg-nicchyo-primary px-3 py-1 text-sm font-bold disabled:opacity-50" onClick={() => void changeStatus(season, "open")}>
                           今すぐ受付を開く
@@ -134,6 +162,51 @@ export default function AdminVendorIntentionPage() {
             </ul>
           )}
         </section>
+
+        {summary.status !== "idle" && (
+          <section aria-labelledby="season-summary" className="space-y-3 rounded-lg border bg-white p-4">
+            <h2 id="season-summary" className="text-lg font-bold">{summary.seasonYear}年の集計（丁目・場所）</h2>
+            {summary.status === "loading" && <p className="text-sm text-nicchyo-ink/70">読み込んでいます…</p>}
+            {summary.status === "error" && <p role="alert" className="text-sm text-red-800">{summary.message}</p>}
+            {summary.status === "ready" && (
+              <>
+                <p className="text-sm">回答者: {summary.summary.respondents ?? 0}店</p>
+                <table className="w-full text-sm">
+                  <caption className="sr-only">丁目ごとの件数</caption>
+                  <thead>
+                    <tr className="text-left"><th scope="col">丁目</th><th scope="col">件数</th></tr>
+                  </thead>
+                  <tbody>
+                    {summary.summary.chomes.map((cell) => (
+                      <tr key={cell.chome}><td>{cell.name}</td><td>{cell.count ?? 0}店</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+                <IntentionPointMap
+                  points={summary.summary.places.map((cell): IntentionMapPoint => ({
+                    id: cell.placeId,
+                    label: `${cell.storeNumber}番${cell.name ? `（${cell.name}）` : ""}: ${cell.count ?? 0}店`,
+                    chome: cell.chome,
+                    lat: cell.lat,
+                    lng: cell.lng,
+                    count: cell.count,
+                  }))}
+                  selectedId={null}
+                  activeChome={null}
+                  label="場所ごとの件数の地図"
+                />
+                <ul className="divide-y text-sm">
+                  {summary.summary.places.map((cell) => (
+                    <li key={cell.placeId} className="flex justify-between py-1">
+                      <span>{cell.storeNumber}番{cell.name ? `（${cell.name}）` : ""}</span>
+                      <span className="font-bold">{cell.count ?? 0}店</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </section>
+        )}
 
         <section aria-labelledby="season-form" className="space-y-3 rounded-lg border bg-white p-4">
           <h2 id="season-form" className="text-lg font-bold">受付期間を作る</h2>
