@@ -33,7 +33,6 @@ export default function MyShopLayout({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   // にちよさんの質問ページは、にちよさんと質問だけを出す（下のナビも出さない）
-  if (pathname === "/my-shop/ask") return <VendorAccessGate kicker="My shop">{children}</VendorAccessGate>;
 
   return (
     <VendorAccessGate kicker="My shop">

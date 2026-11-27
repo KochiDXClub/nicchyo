@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
 import type { MapRouteConfig, MapRoutePoint } from "../../map/types/mapRoute";
-import { roadIdOfSlot } from "@/lib/map/roadSlotPosition";
+import { roadIdOfSlot, roadLengthMeters, roadSlotLatLng, type RoadSide } from "@/lib/map/roadSlotPosition";
+import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import {
   recordOperation,
   redoOperation,
@@ -311,6 +312,72 @@ export function useMapEditOperations(params: Params) {
     [shops, commit, setMessage]
   );
 
+  /** 空いている店番を1つ選ぶ。空きが無いときは理由を知らせて null を返す */
+  const takeFreePosition = useCallback((): number | null => {
+    const used = new Set(shops.map((s) => s.position));
+    for (let n = MIN_SHOP_ID; n <= MAX_SHOP_ID; n += 1) {
+      if (!used.has(n)) return n;
+    }
+    setMessage(`空いている店番（${MIN_SHOP_ID}〜${MAX_SHOP_ID}）がないため、出店場所を追加できません。`);
+    return null;
+  }, [shops, setMessage]);
+
+  /**
+   * 地図の好きな場所に、空きの出店場所（丸いマーカー）を1つ置く。道には乗せず、緯度経度だけを持つ。
+   * 店番は空いている番号を使う。置いた区画の locationId を返す（置けなかったら null）。
+   */
+  const addShopAt = useCallback(
+    (lat: number, lng: number): string | null => {
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      const position = takeFreePosition();
+      if (position === null) return null;
+      const locationId = `new-${Date.now()}-${position}`;
+      const created: EditableShop = {
+        locationId,
+        id: position,
+        position,
+        name: vacantShopName(position),
+        lat,
+        lng,
+      };
+      commit({ shops: [...shops, created] }, "店舗", `店番 ${position} の出店場所を地図に追加`);
+      return locationId;
+    },
+    [shops, commit, takeFreePosition]
+  );
+
+  /**
+   * 道の上に、空きの出店場所（丸いマーカー）を1つ追加する。道の真ん中・左側に置き、店番は空いている番号を使う。
+   * 出店者は後から、この丸に結び付ける（moveVendor など）。
+   */
+  const addSlot = useCallback(
+    (road: EditableRoad): boolean => {
+      if (road.points.length < 2) {
+        setMessage("道の点が足りないため、出店場所を置けません。");
+        return false;
+      }
+      const position = takeFreePosition();
+      if (position === null) return false;
+      const side: RoadSide = "left";
+      const distanceM = roadLengthMeters(road.points) / 2;
+      const latLng = roadSlotLatLng(road.points, { distanceM, side, offsetM: 0 });
+      const created: EditableShop = {
+        locationId: `new-${Date.now()}-${position}`,
+        id: position,
+        position,
+        name: vacantShopName(position),
+        roadId: road.id,
+        roadDistanceM: distanceM,
+        roadSide: side,
+        roadOffsetM: 0,
+        ...latLng,
+      };
+      commit({ shops: [...shops, created] }, "道", `${road.name} に出店場所（${position}番）を追加`);
+      return true;
+    },
+    [shops, commit, setMessage, takeFreePosition]
+  );
+
   /** 区画の住所番号を直す（同じ住所の区画があれば止める） */
   const setSlotAddress = useCallback((locationId: string, address: { main: number; branch: number | null } | null) => {
     const shop = shops.find((item) => item.locationId === locationId);
@@ -549,6 +616,8 @@ export function useMapEditOperations(params: Params) {
     clearVendor,
     setSlotChome,
     setSlotAddress,
+    addSlot,
+    addShopAt,
     deleteSlot,
     applyStoreImport,
     patchRoad,

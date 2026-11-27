@@ -238,3 +238,54 @@ describe("useMapEditOperations.setSlotChome", () => {
     expect(hook.result.current.shops[0].chome).toBeUndefined();
   });
 });
+
+describe("useMapEditOperations.addSlot", () => {
+  it("道の上に、空いている店番で空きの出店場所を1つ追加し、取り消せる", () => {
+    const { hook } = setup([slot(1, 5, { chome: "一丁目" })]);
+    act(() => {
+      expect(hook.result.current.ops.addSlot(road)).toBe(true);
+    });
+    const added = hook.result.current.shops.find((s) => s.locationId.startsWith("new-"));
+    expect(added).toMatchObject({ roadId: road.id, roadSide: "left", position: 2 });
+    expect(added?.vendorId).toBeUndefined();
+    act(() => hook.result.current.ops.undo());
+    expect(hook.result.current.shops).toHaveLength(1);
+  });
+
+  it("追加した空きの出店場所は、削除できる", () => {
+    const { hook } = setup([]);
+    act(() => {
+      hook.result.current.ops.addSlot(road);
+    });
+    const added = hook.result.current.shops[0];
+    act(() => {
+      expect(hook.result.current.ops.deleteSlot(added.locationId)).toBe(true);
+    });
+    expect(hook.result.current.shops).toHaveLength(0);
+  });
+});
+
+describe("useMapEditOperations.addShopAt", () => {
+  it("道に乗せず、タップした場所に空いている店番で出店場所を1つ置き、取り消せる", () => {
+    const { hook } = setup([slot(1, 5, { chome: "一丁目" })]);
+    let id: string | null = null;
+    act(() => {
+      id = hook.result.current.ops.addShopAt(33.5, 133.6);
+    });
+    expect(id).not.toBeNull();
+    const added = hook.result.current.shops.find((s) => s.locationId === id);
+    expect(added).toMatchObject({ position: 2, lat: 33.5, lng: 133.6 });
+    expect(added?.roadId).toBeUndefined();
+    expect(added?.roadDistanceM).toBeUndefined();
+    act(() => hook.result.current.ops.undo());
+    expect(hook.result.current.shops).toHaveLength(1);
+  });
+
+  it("緯度経度が有限でなければ置かない", () => {
+    const { hook } = setup([]);
+    act(() => {
+      expect(hook.result.current.ops.addShopAt(Number.NaN, 133.6)).toBeNull();
+    });
+    expect(hook.result.current.shops).toHaveLength(0);
+  });
+});

@@ -45,8 +45,21 @@ export function RoadListPanel({
   );
 }
 
+/** 道の上に空きの出店場所（丸いマーカー）を1つ追加する。出店者は後から丸に結び付ける */
+function PlaceAddButton({ onAddPlace }: { onAddPlace: () => boolean }) {
+  return (
+    <div style={{ marginTop: 12 }}>
+      <span style={label}>出店場所（丸いマーカー）</span>
+      <button type="button" style={buttonStyle} onClick={() => onAddPlace()}>
+        この道に出店場所を追加
+      </button>
+    </div>
+  );
+}
+
 export function RoadDetailPanel({
   road,
+  onAddPlace,
   onNameChange,
   onKindChange,
   markets,
@@ -65,6 +78,8 @@ export function RoadDetailPanel({
   onNarrowerClick: () => void;
   onDelete: () => void;
   shopCountOnRoad: (roadId: string) => number;
+  /** 空きの出店場所を、この道に1つ追加する */
+  onAddPlace?: () => boolean;
 }) {
   return (
     <div style={panelWrap}>
@@ -85,6 +100,8 @@ export function RoadDetailPanel({
           </option>
         ))}
       </select>
+
+      {onAddPlace && <PlaceAddButton onAddPlace={onAddPlace} />}
 
       {markets.length > 1 && (
         <label style={label}>

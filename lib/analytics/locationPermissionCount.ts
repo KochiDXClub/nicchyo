@@ -35,13 +35,13 @@ async function readPermissionState(): Promise<PermissionState | null> {
 
 function send(choice: LocationPermissionChoice): void {
   try {
+    // 件数は GA4 のイベントで数える（自前の API と DB への書き込みはやめた）。
+    // 送るのは許可か拒否の1語だけで、個人を特定する値は含めない。
     if (isAnalyticsOptedOut()) return;
-    void fetch("/api/analytics/location-permission", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ choice }),
-      keepalive: true,
-    }).catch(() => undefined);
+    const w = window as Window & { gtag?: (...args: unknown[]) => void };
+    if (typeof w.gtag === "function") {
+      w.gtag("event", "location_permission", { choice });
+    }
   } catch {
     // 数えられなくても画面の動作には影響させない
   }

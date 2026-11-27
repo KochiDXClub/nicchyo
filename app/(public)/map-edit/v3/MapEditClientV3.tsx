@@ -19,7 +19,7 @@ import { RoadDetailPanel, RoadListPanel, LandmarkDetailPanel } from "./component
 import SlotVendorPanel from "./components/SlotVendorPanel";
 import { SUNDAY_MARKET_MARKER_COLOR, markerColorForRoad } from "@/lib/market/markerColor";
 import PendingChangeLog from "./components/PendingChangeLog";
-import RoadLaneView, { buildLaneRoadGroups, type LaneRoadGroup } from "./components/RoadLaneView";
+import { buildLaneRoadGroups, type LaneRoadGroup } from "./laneGroups";
 import ToolPalette from "./components/ToolPalette";
 import ToolHint from "./components/ToolHint";
 import SlotMigrationPanel from "./components/SlotMigrationPanel";
@@ -37,7 +37,6 @@ export default function MapEditClientV3() {
   const [draft, setDraft] = useState<{ lat: number; lng: number }[]>([]);
   const [drawAxis, setDrawAxis] = useState<"h" | "v" | "free">("free");
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [laneOpen, setLaneOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState<EditHistory>(EMPTY_HISTORY);
   const changes = useMemo(() => netChanges(history), [history]);
@@ -118,8 +117,8 @@ export default function MapEditClientV3() {
     return { occupied, vacant: shops.length - occupied };
   }, [shops]);
 
-  // 区画レーン（下部の一覧）の並び順。レーン表示とキーボード/WASDナビゲーションの
-  // 両方がこの同じ並び順を参照する（表示と操作の向きが食い違わないようにするため）
+  // 区画の並び順（道→丁目→北側/南側）。キーボード/WASDナビゲーションがこの並び順を参照する
+  // （並び順と移動の向きが食い違わないようにするため）
   const laneGroups: LaneRoadGroup[] = useMemo(
     () => buildLaneRoadGroups(displayShops, roads, ops.roadIdOf),
     [displayShops, roads, ops.roadIdOf]
@@ -330,6 +329,11 @@ export default function MapEditClientV3() {
         if (key) { setSelection({ kind: "landmark", id: key }); setSheetOpen(true); }
         return;
       }
+      // 店舗を置く道具は、Esc で抜けるまで続けて置ける（道に乗せず、タップした場所に置く）
+      if (tool === "placeShop") {
+        ops.addShopAt(lat, lng);
+        return;
+      }
       if (tool === "select") setSelection(null);
     },
     onMapDoubleClick: () => {
@@ -346,7 +350,9 @@ export default function MapEditClientV3() {
         ? "クリックで点を追加、ダブルクリックかEnterで確定、Escで中断（既存の道の点の近くをクリックすると、その点に合わせます）"
         : tool === "placeLandmark"
             ? "建物を置く場所をクリック。Escで中断"
-            : null;
+            : tool === "placeShop"
+              ? "置きたい場所をクリックすると、出店場所を追加します（道の上でなくてもかまいません）。Escで終了"
+              : null;
 
   return (
     <div className="map-editor">
@@ -439,21 +445,8 @@ export default function MapEditClientV3() {
                 </div>
               </div>
             )}
-            {selection?.kind === "slot" && <button type="button" className="map-editor-lane-toggle" aria-expanded={laneOpen} aria-controls="map-editor-lane" onClick={() => setLaneOpen((v) => !v)}>{laneOpen ? "区画一覧を閉じる" : "区画一覧"}</button>}
             <button type="button" className="map-editor-sheet-toggle" aria-expanded={sheetOpen} aria-controls="map-editor-aside" onClick={() => setSheetOpen(true)}>詳細・操作を開く</button>
           </div>
-          {selection?.kind === "slot" && (
-            <div id="map-editor-lane" className={`map-editor-lane ${laneOpen ? "" : "is-closed"}`}><RoadLaneView
-              groups={laneGroups}
-              selectedLocationId={selection.id}
-              search={search}
-              onDropVendor={dropVendor}
-              onSelectShop={(locationId) => {
-                const shop = displayShops.find((s) => s.locationId === locationId);
-                if (shop) selectShopAndFocus(shop);
-              }}
-            /></div>
-          )}
         </div>
 
         <aside id="map-editor-aside" className={`map-editor-aside ${sheetOpen ? "" : "is-closed"}`} aria-label="地図の詳細と操作">
@@ -515,6 +508,7 @@ export default function MapEditClientV3() {
                 <RoadDetailPanel
                   road={selectedRoad}
                   markets={data.markets}
+                  onAddPlace={() => ops.addSlot(selectedRoad)}
                   onMarketChange={(marketId) => ops.patchRoad(selectedRoad.id, { marketId }, "の所属する市を変更")}
                   onNameChange={(value) =>
                     ops.patchRoad(selectedRoad.id, { name: value }, "の名前を変更", { coalesceKey: `road-name:${selectedRoad.id}` })
