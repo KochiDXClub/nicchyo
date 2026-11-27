@@ -12,7 +12,6 @@ import MapLoadingOverlay from '../../components/MapLoadingOverlay';
 import type { Shop } from './data/shops';
 import { fetchPublicShopData } from './services/shopCache';
 import type { ShopProfile } from './types/shopData';
-import { readPublicLegacyIdentities } from '@/lib/shops/publicIdentity.server';
 import { fetchLandmarksFromDb } from './services/landmarksDb';
 import type { Landmark } from './types/landmark';
 import { withOptimizedLandmarkImage } from './utils/landmarkImages';
@@ -119,10 +118,9 @@ export default async function MapPage({ searchParams }: {
     }
   }
 
-  const [featureFlags, mapViewSettings, legacyIdentities, selection, people, marketCalendar] = await Promise.all([
+  const [featureFlags, mapViewSettings, selection, people, marketCalendar] = await Promise.all([
     featureFlagsPromise,
     mapViewSettingsPromise,
-    readPublicLegacyIdentities().catch(() => ({ enabled: true, aliases: {} })),
     selectionPromise,
     peoplePromise,
     calendarPromise,
@@ -141,7 +139,6 @@ export default async function MapPage({ searchParams }: {
         <MapPageClient
         shops={shops}
         profiles={profiles}
-        legacyIdentities={legacyIdentities}
         landmarks={landmarks}
         people={people}
         mapRoute={{ ...mapRoute, markets: selection.markets.map(({ id, name }) => ({ id, name })) }}

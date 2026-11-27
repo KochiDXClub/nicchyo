@@ -8,10 +8,8 @@ import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { MAX_PUBLIC_VENDOR_ID } from "@/lib/shops/identity";
-import { readPublicLegacyIdentities } from "@/lib/shops/publicIdentity.server";
 import { createAnonClient } from "@/lib/supabase/anonClient";
 import { SHOP_VIEW_SOURCES, type ShopViewSource } from "@/lib/analytics/shopViews";
-import { vendorForStore, type Assignment } from "@/lib/analytics/shopVendor";
 import { isShopMember } from "@/lib/vendor/shopMembership";
 
 export const runtime = "nodejs";
@@ -58,35 +56,13 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   if (!admin) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  // 旧番号は公開切替後に場所へ直接結び付けない。確認済みの店舗にだけ解決する。
-  let publicId = shopId;
-  if (shopId <= MAX_SHOP_ID) {
-    try {
-      const mapping = await readPublicLegacyIdentities();
-      if (mapping.enabled) {
-        const resolved = mapping.aliases[String(shopId)];
-        if (!resolved) return NextResponse.json({ ok: true });
-        publicId = resolved;
-      }
-    } catch { return NextResponse.json({ ok: true }); }
-  }
-  let vendorId: string | null = null;
-  if (publicId > MAX_SHOP_ID) {
-    // 匿名の RLS を通る店舗だけを計測する。
-    const anon = createAnonClient();
-    if (!anon) return NextResponse.json({ ok: true });
-    const { data } = await anon.from("vendors").select("id").eq("public_shop_id", publicId).maybeSingle();
-    vendorId = typeof data?.id === "string" ? data.id : null;
-  } else {
-    const { data: locations } = await admin.from("market_locations").select("id").eq("store_number", publicId);
-    const locationIds = new Set((locations ?? []).map((row) => row.id as string));
-    if (locationIds.size === 0) return NextResponse.json({ ok: true });
-    const { data: here } = await admin.from("location_assignments").select("vendor_id").in("location_id", [...locationIds]);
-    const candidates = [...new Set((here ?? []).map((row) => row.vendor_id as string | null).filter((id): id is string => !!id))];
-    if (candidates.length === 0) return NextResponse.json({ ok: true });
-    const { data: assignments } = await admin.from("location_assignments").select("vendor_id, location_id, market_date").in("vendor_id", candidates);
-    vendorId = vendorForStore((assignments ?? []) as Assignment[], locationIds);
-  }
+  // 店舗 ID（1000以上）だけを記録する。旧番号（場所の番号）は店舗を指さないので数えない
+  if (shopId <= MAX_SHOP_ID) return NextResponse.json({ ok: true });
+  // 匿名の RLS を通る店舗だけを計測する。
+  const anon = createAnonClient();
+  if (!anon) return NextResponse.json({ ok: true });
+  const { data } = await anon.from("vendors").select("id").eq("public_shop_id", shopId).maybeSingle();
+  const vendorId: string | null = typeof data?.id === "string" ? data.id : null;
   if (!vendorId) return NextResponse.json({ ok: true });
 
   const cookieStore = await cookies();

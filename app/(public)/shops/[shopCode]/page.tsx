@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { cache } from "react";
-import { notFound, redirect } from "next/navigation";
-import { readPublicLegacyIdentities } from "@/lib/shops/publicIdentity.server";
+import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { normalizeShopCodeToId } from "@/lib/shops/route";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
@@ -19,11 +18,6 @@ type ShopPageProps = {
   }>;
 };
 
-/** 店舗ページの表示用コード。旧番号は3桁のまま（確認済みなら下で新しい URL へ移す）。 */
-function pageShopCode(shopId: number): string {
-  return shopId <= 999 ? String(shopId).padStart(3, "0") : String(shopId);
-}
-
 /**
  * 地図の配置とは独立した公開店舗プロフィールを取る。
  * 出店しない週も店舗情報を表示し、公開許可は来訪者向けの RLS で判定する。
@@ -36,14 +30,6 @@ const fetchShop = cache(async (shopId: number): Promise<ShopProfile | null> => {
   } catch {
     return null;
   }
-});
-
-const resolvePublicId = cache(async (shopId: number): Promise<number | null> => {
-  if (shopId > 999) return shopId;
-  try {
-    const { enabled, aliases } = await readPublicLegacyIdentities();
-    return enabled ? aliases[String(shopId)] ?? null : shopId;
-  } catch { return null; }
 });
 
 /**
@@ -67,10 +53,9 @@ export async function generateMetadata({ params }: ShopPageProps): Promise<Metad
   const shopId = normalizeShopCodeToId(shopCode);
   if (shopId === null) return {};
 
-  const code = pageShopCode(shopId);
+  const code = String(shopId);
 
-  const resolvedId = await resolvePublicId(shopId);
-  const shop = resolvedId === null ? null : await fetchShop(resolvedId);
+  const shop = await fetchShop(shopId);
   const shopName = shop?.name?.trim() || `店舗 ${code}`;
   const products = shop?.products?.slice(0, 3).join("・") ?? "";
   const description = products
@@ -115,11 +100,9 @@ export default async function ShopPage({ params }: ShopPageProps) {
     notFound();
   }
 
-  const normalizedCode = pageShopCode(shopId);
+  const normalizedCode = String(shopId);
 
-  const resolvedId = await resolvePublicId(shopId);
-  if (resolvedId !== null && resolvedId !== shopId) redirect(`/shops/${resolvedId}`);
-  const shop = resolvedId === null ? null : await fetchShop(resolvedId);
+  const shop = await fetchShop(shopId);
   const shopName = shop?.name?.trim() || `店舗 ${normalizedCode}`;
 
   const localBusinessJsonLd = {
@@ -153,7 +136,7 @@ export default async function ShopPage({ params }: ShopPageProps) {
             <p className="text-xs font-semibold tracking-[0.12em] text-amber-700">日曜市の店舗情報</p>
             <h1 className="mt-1 text-2xl font-bold text-slate-900">{shopName}</h1>
             <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              {resolvedId === null ? "以前の店舗番号に対応するお店を確認できません。番号が別のお店を指さないよう、対応を確認しています。" : "このお店の情報はまだ登録されていません。地図で場所を確認できます。"}
+              このお店の情報はまだ登録されていません。地図で場所を確認できます。
             </p>
             <a
               href={`/map?shop=${normalizedCode}`}

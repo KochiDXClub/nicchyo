@@ -4,9 +4,9 @@ export const MIN_SHOP_ID = 1;
 // 店番は3桁（001〜999）。QRコード・URL（/shops/001）も3桁ゼロ埋めで扱う
 export const MAX_SHOP_ID = 999;
 
-/** 旧番号（3桁）と、店舗固有の公開番号（1000以上）を受け付ける。 */
+/** URL の店舗コード（店舗 ID、1000以上）を数値にする。旧番号（001 形式）は null。 */
 export function normalizeShopCodeToId(shopCode: string): number | null {
-  return parseShopIdentity(shopCode)?.id ?? null;
+  return parseShopIdentity(shopCode);
 }
 
 /** 共有・QR・案内に使う店舗 ID（1000以上の店舗固有番号）だけを文字列にする。旧番号（場所の番号）は作らない。 */
