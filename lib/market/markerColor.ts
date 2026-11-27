@@ -34,3 +34,19 @@ export function markerColorForRoad(
   const market = roadMarketId ? markets.find((item) => item.id === roadMarketId) : sunday;
   return resolveMarkerColor(market?.markerColor, market?.slug === "nichiyo" || !market ? SUNDAY_MARKET_MARKER_COLOR : DEFAULT_MARKET_MARKER_COLOR);
 }
+
+/**
+ * 地図の道（縮小時の強調・色かぶせ）に使う市の色。
+ * 日曜市と、市の指定が無い道は呼び出し側の色（日曜市の緑）を使い、ほかの市は管理画面で設定した色を使う。
+ * 色が未設定・不正な市は初期色になる。
+ */
+export function mapMarketColor(
+  roadMarketId: string | null | undefined,
+  markets: readonly { id: string; markerColor?: string | null }[],
+  sundayMarketId: string | null | undefined,
+  sundayColor: string,
+): string {
+  if (!roadMarketId || roadMarketId === sundayMarketId) return sundayColor;
+  const market = markets.find((item) => item.id === roadMarketId);
+  return resolveMarkerColor(market?.markerColor);
+}

@@ -32,7 +32,7 @@ export type MapRoute = {
    * 読み込めなかったとき・古いデータでは無い
    */
   roads?: MapRoad[];
-  markets?: { id: string; name: string }[];
+  markets?: { id: string; name: string; markerColor?: string }[];
 };
 
 export const DEFAULT_MAP_ROUTE_CONFIG: MapRouteConfig = {

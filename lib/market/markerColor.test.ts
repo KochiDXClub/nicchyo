@@ -3,6 +3,7 @@ import {
   DEFAULT_MARKET_MARKER_COLOR,
   SUNDAY_MARKET_MARKER_COLOR,
   isMarkerColor,
+  mapMarketColor,
   markerColorForRoad,
   resolveMarkerColor,
 } from "./markerColor";
@@ -34,5 +35,18 @@ describe("markerColor", () => {
 
   it("色が未設定の市は初期色になる", () => {
     expect(markerColorForRoad("no-color", markets)).toBe(DEFAULT_MARKET_MARKER_COLOR);
+  });
+
+  it("地図の道の色: 日曜市と市の指定が無い道は呼び出し側の色、ほかの市は設定した色", () => {
+    const sundayGreen = "#7ED957";
+    expect(mapMarketColor("thu", markets, "sun", sundayGreen)).toBe("#0EA5E9");
+    expect(mapMarketColor("sun", markets, "sun", sundayGreen)).toBe(sundayGreen);
+    expect(mapMarketColor(null, markets, "sun", sundayGreen)).toBe(sundayGreen);
+  });
+
+  it("地図の道の色: 色が未設定・不正な市は初期色、見つからない市も初期色", () => {
+    const sundayGreen = "#7ED957";
+    expect(mapMarketColor("no-color", markets, "sun", sundayGreen)).toBe(DEFAULT_MARKET_MARKER_COLOR);
+    expect(mapMarketColor("unknown", markets, "sun", sundayGreen)).toBe(DEFAULT_MARKET_MARKER_COLOR);
   });
 });
