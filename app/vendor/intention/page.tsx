@@ -31,6 +31,14 @@ function chomeOfPlace(places: IntentionPlace[], placeId: string | null): ChomeId
   return places.find((place) => place.id === placeId)?.chome ?? null;
 }
 
+/** 今の選択を、一行で（丁目 → 場所の順） */
+function selectionText(places: IntentionPlace[], chome: ChomeId | null, placeId: string | null): string {
+  if (chome === null) return "まだ選んでいません";
+  const chomeName = CHOMES.find((item) => item.id === chome)?.shortName ?? "";
+  const place = places.find((item) => item.id === placeId);
+  return place ? `${chomeName}・${intentionPlaceLabel(place)}` : `${chomeName}（場所は未選択）`;
+}
+
 /**
  * 出店意向調査。来季、出店したい丁目を選ぶ（丁目だけでも回答できる）。
  * 丁目の中の場所は、地図の点か一覧から選べる（任意）。初期は今出店している場所。
@@ -146,22 +154,26 @@ export default function VendorIntentionPage() {
         )}
 
         {state.status === "ready" && state.season && (
-          <form onSubmit={handleSubmit} className="space-y-6" aria-label={state.season.title}>
-            <Surface padding="md" className="space-y-1">
+          <form onSubmit={handleSubmit} className="space-y-5" aria-label={state.season.title}>
+            <div className="space-y-1">
               <p className="text-base font-bold text-nicchyo-ink">{state.season.title}</p>
-              <p className="text-sm leading-relaxed text-nicchyo-ink/70">
-                {formatJapaneseDate(state.season.closesOn)} まで選び直せます。市役所に伝わるのは、丁目と場所ごとの件数だけです。
-                ほかの店の答えは見えません。
-              </p>
+              <p className="text-sm text-nicchyo-ink/70">{formatJapaneseDate(state.season.closesOn)}まで何度でも変えられます</p>
+            </div>
+
+            <Surface padding="md" className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-nicchyo-ink/55">あなたの選択</p>
+                <p className="truncate text-base font-bold text-nicchyo-ink">{selectionText(places, chome, placeId)}</p>
+              </div>
             </Surface>
 
-            <fieldset className="space-y-3">
-              <legend className="px-1 text-lg font-bold text-nicchyo-ink">1. 出店したい丁目</legend>
+            <fieldset className="space-y-2">
+              <legend className="text-base font-bold text-nicchyo-ink">丁目</legend>
               <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
                 {CHOMES.map((item) => (
                   <label
                     key={item.id}
-                    className="flex min-h-11 cursor-pointer items-center justify-center rounded-btn bg-nicchyo-base px-2 text-sm font-bold text-nicchyo-ink ring-1 ring-nicchyo-ink/15 has-[:checked]:ring-2 has-[:checked]:ring-nicchyo-primary"
+                    className="flex min-h-12 cursor-pointer flex-col items-center justify-center gap-1 rounded-btn bg-white px-1 text-sm font-bold text-nicchyo-ink ring-1 ring-line has-[:checked]:ring-2 has-[:checked]:ring-nicchyo-primary"
                   >
                     <input
                       type="radio"
@@ -171,18 +183,15 @@ export default function VendorIntentionPage() {
                       checked={chome === item.id}
                       onChange={() => pickChome(item.id)}
                     />
+                    <span aria-hidden="true" className="h-2 w-6 rounded-full" style={{ backgroundColor: item.color }} />
                     {item.shortName}
                   </label>
                 ))}
               </div>
             </fieldset>
 
-            <fieldset className="space-y-3">
-              <legend className="px-1 text-lg font-bold text-nicchyo-ink">2. 場所（任意）</legend>
-              <p className="px-1 text-sm text-nicchyo-ink/70">
-                地図の点か一覧から、{chome === null ? "丁目を選ぶと場所を選べます" : `${CHOMES.find((item) => item.id === chome)?.shortName ?? ""}の場所を選べます`}。
-                場所を選ばずに丁目だけで答えても構いません。
-              </p>
+            <fieldset className="space-y-2">
+              <legend className="text-base font-bold text-nicchyo-ink">場所 <span className="text-sm font-normal text-nicchyo-ink/55">（任意）</span></legend>
               <IntentionPointMap
                 points={mapPoints}
                 selectedId={placeId}
@@ -191,22 +200,24 @@ export default function VendorIntentionPage() {
                   const place = places.find((item) => item.id === point.id);
                   if (place) pickPlace(place);
                 }}
-                label="出店場所の地図（点を押すと場所を選べます）"
+                label="場所の地図。点を押すと選べます"
               />
+              {chome === null && <p className="text-sm text-nicchyo-ink/70">先に丁目を選ぶと、場所を選べます。</p>}
               {chome !== null && placesInChome.length === 0 && (
-                <p className="text-sm text-nicchyo-ink/70">この丁目の場所は、まだ登録されていません。丁目だけで答えてください。</p>
+                <p className="text-sm text-nicchyo-ink/70">この丁目の場所はまだありません。丁目だけで答えられます。</p>
               )}
               {chome !== null && placesInChome.length > 0 && (
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {placesInChome.map((place) => (
                     <label
                       key={place.id}
-                      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-btn bg-nicchyo-base px-3 text-sm text-nicchyo-ink ring-1 ring-nicchyo-ink/15 has-[:checked]:ring-2 has-[:checked]:ring-nicchyo-primary"
+                      className="flex min-h-11 cursor-pointer items-center justify-center rounded-btn bg-white px-2 text-sm text-nicchyo-ink ring-1 ring-line has-[:checked]:font-bold has-[:checked]:ring-2 has-[:checked]:ring-nicchyo-primary"
                     >
                       <input
                         type="radio"
                         name="place"
                         value={place.id}
+                        className="sr-only"
                         checked={placeId === place.id}
                         onChange={() => pickPlace(place)}
                       />
@@ -231,7 +242,7 @@ export default function VendorIntentionPage() {
             )}
 
             <Button type="submit" disabled={saving || !state.editable || chome === null} className="w-full">
-              {saving ? "保存しています…" : state.response ? "選び直して保存する" : "回答を保存する"}
+              {saving ? "保存しています…" : state.response ? "この内容で保存" : "この内容で回答する"}
             </Button>
           </form>
         )}
