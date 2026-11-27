@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { useLaneKeyboardNavigation } from "./useLaneKeyboardNavigation";
-import type { LaneRoadGroup } from "./components/RoadLaneView";
+import type { LaneRoadGroup } from "./laneGroups";
 import type { EditableRoad, EditableShop } from "./types";
 
 const shop = (position: number): EditableShop => ({

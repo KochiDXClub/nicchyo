@@ -105,6 +105,14 @@ const getCachedSchedulesByMarket = unstable_cache(
   { revalidate: SHOP_DELTA_REVALIDATE_SECONDS, tags: [SHOP_BASE_CACHE_TAG] },
 );
 
+/** 店舗 ID（public_shop_id）を出店者の行に付ける。ID が無い店は行ごと外す（stableIds の前提） */
+function withPublicShopIds<T extends { id: string }>(vendors: T[], ids: Map<string, number>) {
+  return vendors.flatMap((vendor) => {
+    const publicId = ids.get(vendor.id);
+    return typeof publicId === "number" ? [{ ...vendor, public_shop_id: publicId }] : [];
+  });
+}
+
 function readPublicShopIds(supabase: NonNullable<ReturnType<typeof createAnonClient>>) {
   return fetchAllRows<{ id: string; public_shop_id: number }>(
     (from, to) => supabase.from("vendors").select("id,public_shop_id").order("id").range(from, to),
@@ -197,6 +205,18 @@ export async function fetchPublicShopData(locale: Locale = DEFAULT_LOCALE, mapSe
 
   if (selection) return loadMarketShopData(supabase, baseRows, activeContents, selection, scheduleEnabled, locale);
 
+  if (!scheduleEnabled) {
+    // ロールアウト前も店の ID は店舗 ID（stableIds）を使う。公開中の店舗 ID を行に付けないと、店が地図から消える
+    const publicIds = await readPublicShopIds(supabase);
+    baseRows = {
+      ...baseRows,
+      vendors: baseRows.vendors.flatMap((vendor) => {
+        const publicId = publicIds.get(vendor.id);
+        return typeof publicId === "number" ? [{ ...vendor, public_shop_id: publicId }] : [];
+      }),
+    };
+  }
+
   let ids = new Map<string, number>();
   let statuses = new Map<string, NonNullable<ShopProfile["nextMarketStatus"]>>();
   let marketDate: string | null = null;
@@ -220,15 +240,13 @@ export async function fetchPublicShopData(locale: Locale = DEFAULT_LOCALE, mapSe
     const managed = managedVendorIdsForDate(scheduleWithDay, date);
     baseRows = {
       ...baseRows,
-      vendors: baseRows.vendors.flatMap((vendor) => {
-        const publicId = ids.get(vendor.id);
-        return typeof publicId === "number" ? [{ ...vendor, public_shop_id: publicId }] : [];
-      }),
+      vendors: withPublicShopIds(baseRows.vendors, ids),
       assignments: publicAssignmentsForDate(scheduleWithDay, date, baseRows.assignments, visible).filter((row) => row.vendor_id !== null && (statuses.get(row.vendor_id) === "scheduled" || (!managed.has(row.vendor_id) && row.market_date === date))),
     };
   }
   const categories = await fetchCategories().catch(() => []);
-  const positioned = (scheduleEnabled ? buildVendorShops(baseRows, activeContents, { stableIds: true }) : buildVendorShops(baseRows, activeContents)).map(shop => withCategory(shop, categories));
+  // 店の ID は常に店舗 ID（1000以上）を使う。場所の番号（旧番号）を店の ID にしない
+  const positioned = buildVendorShops(baseRows, activeContents, { stableIds: true }).map((shop) => withCategory(shop, categories));
   if (!scheduleEnabled) {
     const shops = await applyShopTranslations(positioned, locale);
     return { shops, profiles: shops };

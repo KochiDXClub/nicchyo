@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { sideOfShop } from "./RoadLaneView";
-import type { EditableRoad, EditableShop } from "../types";
+import { sideOfShop } from "./laneGroups";
+import type { EditableRoad, EditableShop } from "./types";
 
 function makeShop(overrides: Partial<EditableShop>): EditableShop {
   return {

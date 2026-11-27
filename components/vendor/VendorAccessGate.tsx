@@ -27,8 +27,8 @@ function GuardMessage({
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
       <div className="mx-auto max-w-2xl px-4 py-24 text-center">
         <p className="text-base font-semibold uppercase tracking-[0.3em] text-amber-700">{kicker}</p>
-        <h1 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl">{title}</h1>
-        <p className="mt-2 text-lg text-slate-600">{message}</p>
+        <h1 className="mt-4 text-3xl font-bold text-nicchyo-ink sm:text-4xl">{title}</h1>
+        <p className="mt-2 text-lg text-nicchyo-ink/70">{message}</p>
         {cta && (
           <Link href={cta.href} className={ctaClass}>
             {cta.label}

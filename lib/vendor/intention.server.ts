@@ -6,10 +6,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { todayJstString } from "@/lib/time/jstDate";
 import {
+  INTENTION_PLACE_COLUMNS,
   INTENTION_RESPONSE_COLUMNS,
   INTENTION_SEASON_COLUMNS,
-  rowToIntentionSeason,
+  rowToIntentionPlace,
   rowToIntentionResponse,
+  rowToIntentionSeason,
+  type IntentionPlace,
+  type IntentionPlaceRow,
   type IntentionResponseRow,
   type IntentionSeason,
   type IntentionSeasonRow,
@@ -55,4 +59,21 @@ export async function readOwnIntentionResponse(db: SupabaseClient, seasonYear: n
     .maybeSingle();
   if (error) throw error;
   return data ? rowToIntentionResponse(data as IntentionResponseRow) : null;
+}
+
+/** 出店者が選べる場所（区画番号の昇順） */
+export async function listIntentionPlaces(db: SupabaseClient): Promise<IntentionPlace[]> {
+  const { data, error } = await db
+    .from("market_locations")
+    .select(INTENTION_PLACE_COLUMNS)
+    .order("store_number", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as IntentionPlaceRow[]).map(rowToIntentionPlace);
+}
+
+/** 場所が存在するか（保存の前に確かめて、存在しない場所を 400 で返す） */
+export async function intentionPlaceExists(db: SupabaseClient, placeId: string): Promise<boolean> {
+  const { data, error } = await db.from("market_locations").select("id").eq("id", placeId).maybeSingle();
+  if (error) throw error;
+  return data !== null;
 }

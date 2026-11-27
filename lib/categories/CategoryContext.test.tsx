@@ -19,9 +19,23 @@ describe("表示中のマップ・バナーと絞り込み", () => {
     expect(screen.getByTestId("filter").textContent).toBe("野菜・果物");
     expect(refresh).toHaveBeenCalled();
     fetcher.mockResolvedValue({ ok: true, json: async () => ({ categories: [{ id: "c1", name: "青果", presentation_key: "食材" }] }) });
+    // フォーカスの再取得は前回取得から60秒以上あいたときだけ行う
+    const now = Date.now();
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(now + 61_000);
     act(() => window.dispatchEvent(new Event("focus")));
+    nowSpy.mockRestore();
     await waitFor(() => expect(screen.getByTestId("banner").textContent).toBe("青果"));
     expect(screen.getByTestId("filter").textContent).toBe("青果");
+  });
+
+  it("画面に戻るたびの再取得は60秒以内なら省く", async () => {
+    const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ categories: [{ id: "c1", name: "野菜・果物", presentation_key: "食材" }] }) });
+    vi.stubGlobal("fetch", fetcher);
+    render(<CategoryProvider initial={[{ id: "c1", name: "食材", presentation_key: "食材" }]}><Consumer /></CategoryProvider>);
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    act(() => window.dispatchEvent(new Event("focus")));
+    act(() => window.dispatchEvent(new Event("focus")));
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it("通信失敗でカテゴリや店舗表示を消さない", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));

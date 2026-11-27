@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const OPT_OUT_KEY = "nicchyo_analytics_opt_out";
 
@@ -20,13 +20,18 @@ async function loadReporter() {
 }
 
 describe("位置情報の許可・拒否の件数", () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
+  // 件数は GA4 のイベント（gtag）で数える。送信先は gtag だけ
+  let gtagMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     window.localStorage.clear();
-    fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
+    gtagMock = vi.fn();
+    (window as Window & { gtag?: unknown }).gtag = gtagMock;
     setPermissionState("prompt");
+  });
+
+  afterEach(() => {
+    delete (window as Window & { gtag?: unknown }).gtag;
   });
 
   it("まだ聞かれていない画面で許可されたら、allowed を 1 回だけ送る", async () => {
@@ -37,10 +42,8 @@ describe("位置情報の許可・拒否の件数", () => {
     reporter.onAllowed();
     reporter.onAllowed();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("/api/analytics/location-permission");
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ choice: "allowed" });
+    expect(gtagMock).toHaveBeenCalledTimes(1);
+    expect(gtagMock).toHaveBeenCalledWith("event", "location_permission", { choice: "allowed" });
   });
 
   it("送るのは choice だけ（位置や ID は含めない）", async () => {
@@ -50,8 +53,8 @@ describe("位置情報の許可・拒否の件数", () => {
 
     reporter.onDenied();
 
-    const [, init] = fetchMock.mock.calls[0];
-    expect(Object.keys(JSON.parse((init as RequestInit).body as string))).toEqual(["choice"]);
+    const [, , params] = gtagMock.mock.calls[0];
+    expect(Object.keys(params as object)).toEqual(["choice"]);
   });
 
   it("許可済みの再訪では数えない（答えを選んだ場面ではないため）", async () => {
@@ -62,7 +65,7 @@ describe("位置情報の許可・拒否の件数", () => {
 
     reporter.onAllowed();
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(gtagMock).not.toHaveBeenCalled();
   });
 
   it("Permissions API が無い端末では数えない（聞いた場面かどうか分からないため）", async () => {
@@ -73,7 +76,7 @@ describe("位置情報の許可・拒否の件数", () => {
 
     reporter.onDenied();
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(gtagMock).not.toHaveBeenCalled();
   });
 
   it("同じ読み込みの中では、地図と おでかけサポート の両方から聞いても 1 回だけ", async () => {
@@ -86,7 +89,7 @@ describe("位置情報の許可・拒否の件数", () => {
     map.onDenied();
     guide.onAllowed();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(gtagMock).toHaveBeenCalledTimes(1);
   });
 
   it("アクセス解析を止めている端末では送らない", async () => {
@@ -97,16 +100,17 @@ describe("位置情報の許可・拒否の件数", () => {
 
     reporter.onAllowed();
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(gtagMock).not.toHaveBeenCalled();
   });
 
-  it("送信に失敗しても例外を投げない（地図を止めない）", async () => {
-    fetchMock.mockRejectedValue(new TypeError("network down"));
+  it("gtag が無い・失敗しても例外を投げない（地図を止めない）", async () => {
+    gtagMock.mockImplementation(() => {
+      throw new Error("gtag failed");
+    });
     const { createLocationChoiceReporter } = await loadReporter();
     const reporter = createLocationChoiceReporter();
     await reporter.readPriorState();
 
     expect(() => reporter.onDenied()).not.toThrow();
-    await Promise.resolve();
   });
 });

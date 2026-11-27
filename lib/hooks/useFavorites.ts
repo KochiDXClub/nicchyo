@@ -17,7 +17,6 @@ import {
   FAVORITE_SHOPS_KEY,
   FAVORITE_SHOPS_UPDATED_EVENT,
   loadFavoriteEntries,
-  tryMigrateFavoriteShopIdentities,
   type FavoriteEntry,
 } from "../favoriteShops";
 
@@ -32,18 +31,7 @@ export function useFavoriteEntries(): FavoriteEntry[] {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    let active = true;
-    let generation = 0;
-    const sync = () => {
-      const current = ++generation;
-      // 旧番号から変換された行は、現在も対応が有効と確認できるまで旧番号で扱う。
-      setEntries(loadFavoriteEntries().map((entry) => entry.legacyShopId
-        ? { ...entry, shopId: entry.legacyShopId }
-        : entry));
-      void tryMigrateFavoriteShopIdentities().then((verified) => {
-        if (active && current === generation && verified) setEntries(loadFavoriteEntries());
-      });
-    };
+    const sync = () => setEntries(loadFavoriteEntries());
     sync();
     const handleStorage = (event: StorageEvent) => {
       if (event.key === FAVORITE_SHOPS_KEY) sync();
@@ -52,7 +40,6 @@ export function useFavoriteEntries(): FavoriteEntry[] {
     window.addEventListener("storage", handleStorage);
     window.addEventListener("focus", sync);
     return () => {
-      active = false;
       window.removeEventListener(FAVORITE_SHOPS_UPDATED_EVENT, sync);
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("focus", sync);

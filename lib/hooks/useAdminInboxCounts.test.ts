@@ -41,3 +41,42 @@ describe("useAdminInboxCounts", () => {
     await waitFor(() => expect(result.current.total).toBe(3));
   });
 });
+
+describe("useAdminInboxCounts を複数の場所で同時に使うとき", () => {
+  it("サイドバーとタブが同じ画面で同時に使っても、取得は1回にまとめる", async () => {
+    const { result } = renderHook(() => ({
+      sidebar: useAdminInboxCounts(true, "/admin/notifications"),
+      tabs: useAdminInboxCounts(true, "/admin/notifications"),
+    }));
+    await waitFor(() => expect(result.current.sidebar.total).toBe(10));
+    process.stdout.write(`[measure] inbox-counts requests on mount with two users: ${vi.mocked(fetch).mock.calls.length}\n`);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("画面を移ったときも、同じ取得を共有する", async () => {
+    const { result, rerender } = renderHook(
+      ({ path }: { path: string }) => ({
+        sidebar: useAdminInboxCounts(true, path),
+        tabs: useAdminInboxCounts(true, path),
+      }),
+      { initialProps: { path: "/admin/notifications" } },
+    );
+    await waitFor(() => expect(result.current.sidebar.total).toBe(10));
+    rerender({ path: "/admin/reports" });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+  });
+
+  it("対応したあと（notifyInboxChanged）は、両方とも新しい件数になる", async () => {
+    const { result } = renderHook(() => ({
+      sidebar: useAdminInboxCounts(true),
+      tabs: useAdminInboxCounts(true),
+    }));
+    await waitFor(() => expect(result.current.sidebar.total).toBe(10));
+    vi.mocked(fetch).mockResolvedValue(respond({ notifications: 0, reports: 0, inquiries: 3, vendorInquiries: 0 }));
+    act(() => notifyInboxChanged());
+    await waitFor(() => {
+      expect(result.current.sidebar.total).toBe(3);
+      expect(result.current.tabs.total).toBe(3);
+    });
+  });
+});

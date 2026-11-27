@@ -29,7 +29,7 @@ export type SnapshotItem = {
  * 地図左上の道具パレットで選ぶ道具。
  * 選択以外の道具は、1回の操作を終えるか Esc を押すと選択に戻る。
  */
-export type Tool = "select" | "drawRoad" | "splitSlots" | "placeLandmark";
+export type Tool = "select" | "drawRoad" | "placeLandmark" | "placeShop";
 
 /** 選択ツールで選んでいるもの。道・区画・建物のどれか1つ */
 export type Selection =

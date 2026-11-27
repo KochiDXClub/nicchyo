@@ -173,7 +173,7 @@ export default function ClosedDaysCalendar({
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-xl text-nicchyo-ink">出店しない日</h2>
-          <p className="mt-0.5 text-[12px] text-slate-500">お休みの日曜をタップで登録できます</p>
+          <p className="mt-0.5 text-[12px] text-nicchyo-ink/70">お休みの日曜をタップで登録できます</p>
         </div>
         {saving && <span className="text-[11px] font-semibold text-amber-500">保存中…</span>}
       </div>
@@ -194,7 +194,7 @@ export default function ClosedDaysCalendar({
                 aria-pressed={isClosed}
                 className={`flex min-w-[64px] shrink-0 flex-col items-center gap-0.5 rounded-2xl border px-3 py-2.5 transition active:scale-95 ${
                   isClosed
-                    ? "border-slate-200 bg-slate-100 text-slate-400"
+                    ? "border-line bg-nicchyo-ink/5 text-nicchyo-ink/55"
                     : "border-amber-200 bg-amber-50 text-amber-800"
                 }`}
               >
@@ -218,7 +218,7 @@ export default function ClosedDaysCalendar({
               type="button"
               onClick={() => stepMonth(-1)}
               disabled={atMin}
-              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition active:scale-90 hover:bg-amber-50 disabled:opacity-25"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-nicchyo-ink/70 transition active:scale-90 hover:bg-amber-50 disabled:opacity-25"
               aria-label="前の月"
             >
               <ChevronLeft size={20} />
@@ -238,7 +238,7 @@ export default function ClosedDaysCalendar({
               type="button"
               onClick={() => stepMonth(1)}
               disabled={atMax}
-              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition active:scale-90 hover:bg-amber-50 disabled:opacity-25"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-nicchyo-ink/70 transition active:scale-90 hover:bg-amber-50 disabled:opacity-25"
               aria-label="次の月"
             >
               <ChevronRight size={20} />
@@ -273,7 +273,7 @@ export default function ClosedDaysCalendar({
               <span
                 key={w}
                 className={`py-1 text-[12px] font-bold ${
-                  i === 0 ? "text-amber-700" : i === 6 ? "text-sky-500" : "text-slate-400"
+                  i === 0 ? "text-amber-700" : i === 6 ? "text-sky-500" : "text-nicchyo-ink/55"
                 }`}
               >
                 {w}
@@ -299,10 +299,10 @@ export default function ClosedDaysCalendar({
                   aria-pressed={isSunday ? isClosed : undefined}
                   className={`relative flex aspect-square items-center justify-center rounded-xl text-sm transition active:scale-90 ${
                     isClosed
-                      ? "bg-slate-200 font-bold text-slate-400 line-through"
+                      ? "bg-nicchyo-ink/10 font-bold text-nicchyo-ink/55 line-through"
                       : isSunday
                         ? "bg-amber-50 font-bold text-amber-800 hover:bg-amber-100"
-                        : "text-slate-300"
+                        : "text-nicchyo-ink/40"
                   } ${isToday ? "ring-2 ring-amber-400" : ""} ${isPast ? "opacity-40" : ""}`}
                 >
                   <span className="flex items-baseline justify-center">
@@ -314,7 +314,7 @@ export default function ClosedDaysCalendar({
             })}
           </div>
 
-          <p className="mt-3 text-center text-[12px] text-slate-400">
+          <p className="mt-3 text-center text-[12px] text-nicchyo-ink/55">
             日曜をタップすると「休み」に、もう一度タップで戻せます
           </p>
         </div>
@@ -361,7 +361,7 @@ function Dial({
               data-val={o.value}
               onClick={() => onSelect(o.value)}
               className={`flex h-11 w-full snap-center items-center justify-center rounded-lg text-lg transition ${
-                active ? "font-display font-bold text-amber-800" : "text-slate-400 hover:text-slate-600"
+                active ? "font-display font-bold text-amber-800" : "text-nicchyo-ink/55 hover:text-nicchyo-ink/70"
               }`}
             >
               {o.label}

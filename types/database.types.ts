@@ -419,6 +419,33 @@ export type Database = {
         }
         Relationships: []
       }
+      knowledge_entries: {
+        Row: {
+          category: string
+          content: string
+          id: string
+          image_url: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          content: string
+          id: string
+          image_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          id?: string
+          image_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       knowledge_embeddings: {
         Row: {
           category: string | null
@@ -571,6 +598,41 @@ export type Database = {
           weekday?: number
         }
         Relationships: []
+      }
+      market_areas: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          market_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          market_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          market_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_areas_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       site_announcements: {
         Row: {
@@ -1796,6 +1858,14 @@ export type Database = {
           p_vendor_id: string
         }
         Returns: Json
+      }
+      rename_market_area: {
+        Args: { p_id: string; p_label: string }
+        Returns: undefined
+      }
+      reorder_market_areas: {
+        Args: { p_ids: string[]; p_market_id: string }
+        Returns: undefined
       }
       get_reaction_counts: {
         Args: { content_ids: string[] }

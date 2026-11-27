@@ -11,6 +11,8 @@ import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from ".
 import { getShopPreviewImage } from "../../../lib/shopImages";
 import { useAuth } from "../../../lib/auth/AuthContext";
 import { useCategories, useCategorizedShops } from "@/lib/categories/CategoryContext";
+import { useLocale, useT } from "@/lib/i18n/LocaleContext";
+import { DEFAULT_LOCALE } from "@/lib/i18n/config";
 import type { Shop } from "./data/shops";
 import type { ShopProfile } from "./types/shopData";
 import { UnplacedSearchResults } from "./components/UnplacedSearchResults";
@@ -28,6 +30,7 @@ import MarketStatusBar from "../../components/market/MarketStatusBar";
 import AnnouncementBanner from "@/components/announcements/AnnouncementBanner";
 import { getMarketCalendarDates } from "@/lib/market/calendar";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
+import type { MarketCalendar } from "@/lib/market/calendar";
 import ShopScanCards from "./components/ShopScanCards";
 import NearbyExploreButton from "./components/NearbyExploreButton";
 import BackToMarketButton, { useBackToMarket } from "./components/BackToMarketButton";
@@ -97,6 +100,8 @@ type MapPageClientProps = {
   people?: Landmark[];
   mapRoute: MapRoute;
   initialMarketId?: string;
+  /** サーバーで読んだ開催情報。あれば初回描画から使い、クライアントからの取得を省く */
+  initialMarketCalendar?: MarketCalendar | null;
   sundayMarketId?: string;
   marketRequested?: boolean;
   /** 管理画面で保存したマップ動作フラグ（未指定なら既定値） */
@@ -118,6 +123,7 @@ export default function MapPageClient({
   people,
   mapRoute,
   initialMarketId,
+  initialMarketCalendar,
   sundayMarketId,
   marketRequested,
   featureFlags,
@@ -125,6 +131,14 @@ export default function MapPageClient({
 }: MapPageClientProps) {
   const shops = useCategorizedShops(sourceShops);
   const categories = useCategories();
+  const locale = useLocale();
+  const t = useT();
+  // 英語表示のときだけ、ジャンルチップを英語名にする（運営の英語名 → 辞書 → 日本語の順）。絞り込みの値は日本語名のまま
+  const genreLabelFor = useMemo(() => {
+    if (locale === DEFAULT_LOCALE) return undefined;
+    const labels = new Map(categories.map(category => [category.name, category.name_en || t(category.name)]));
+    return (name: string) => labels.get(name) ?? name;
+  }, [locale, categories, t]);
   const showGrandma = false;
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -298,7 +312,7 @@ export default function MapPageClient({
   }, []);
   const [isShopBannerOpen, setIsShopBannerOpen] = useState(false);
   // 開催ステータス。マップでは平常時（開催）は出さず、中止・臨時休市・特別開催のときだけバーを出す
-  const { calendar: marketCalendar, loading: marketCalendarLoading, error: marketCalendarError } = useMarketCalendar();
+  const { calendar: marketCalendar, loading: marketCalendarLoading, error: marketCalendarError } = useMarketCalendar(initialMarketCalendar);
   const marketDate = useMemo(
     () => getMarketCalendarDates(marketCalendar, 1, { includeEventDates: false }).find((date) => date.marketId === initialMarketId),
     [initialMarketId, marketCalendar]
@@ -1006,6 +1020,7 @@ export default function MapPageClient({
                 {/* ジャンルフィルター */}
                 <GenreFilter
                   categories={categories.map(category => category.name)}
+                  labelFor={genreLabelFor}
                   selected={mapSearchCategory}
                   onSelect={(cat) => setMapSearchCategory(mapSearchCategory === cat ? null : cat)}
                   favoritesActive={favoritesOnly}

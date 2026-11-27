@@ -94,24 +94,25 @@ export default function PageVisitTracker() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         flush(true);
+      } else {
+        // 表示に戻ったら、そこから数え直す。隠れていた時間は滞在に含めず、
+        // 次の離脱で送れるように送信済みの印も戻す
+        startTimeRef.current = Date.now();
+        sentRef.current = false;
       }
     };
     const handlePageHide = () => {
       flush(true);
     };
 
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        flush(false);
-      }
-    }, 15000);
-
+    // 以前は15秒ごとにも送っていた（ページ内の定期送信）。1タブにつき毎分4回の関数呼び出しと
+    // web_page_analytics への行追加になり、Active CPU の大半を占めていたため止めた。
+    // 滞在時間は画面遷移・非表示・離脱のときにまとめて送る。
     window.addEventListener("pagehide", handlePageHide);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       flush(true);
-      window.clearInterval(intervalId);
       window.removeEventListener("pagehide", handlePageHide);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };

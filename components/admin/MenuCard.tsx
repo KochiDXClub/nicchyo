@@ -28,8 +28,8 @@ export const MenuCard = React.memo(function MenuCard({
           {icon}
         </span>
       </div>
-      <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-      <p className="mt-2 text-sm text-gray-600">{description}</p>
+      <h3 className="text-lg font-bold text-nicchyo-ink">{title}</h3>
+      <p className="mt-2 text-sm text-nicchyo-ink/70">{description}</p>
     </Link>
   );
 });

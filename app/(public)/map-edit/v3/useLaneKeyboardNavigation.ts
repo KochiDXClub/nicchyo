@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { LaneRoadGroup } from "./components/RoadLaneView";
+import type { LaneRoadGroup } from "./laneGroups";
 import type { EditableShop } from "./types";
 
 /**
