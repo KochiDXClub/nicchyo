@@ -47,8 +47,8 @@ export default function MarketCalendarView({ heading, dates, notice, monthCalend
       <div className="bg-gradient-to-b from-nicchyo-soft-green/25 to-transparent pb-4 pt-safe-top lg:pb-5">
         <PageContainer width={wide ? "wide" : "narrow"} className="pt-6">
           {/* PC では見出しと次の開催を横に並べ、ヘッダの高さを抑えて一覧を早く見せる */}
-          <div className="lg:flex lg:items-start lg:justify-between lg:gap-10">
-            <div className="min-w-0">
+          <div className="lg:grid lg:grid-cols-[minmax(17rem,1fr)_20rem_minmax(17rem,1fr)] lg:items-start lg:gap-6">
+            <div className="min-w-0 lg:col-start-1">
               {heading}
 
               {options.length > 1 && (
@@ -70,7 +70,7 @@ export default function MarketCalendarView({ heading, dates, notice, monthCalend
               <MarketStatusCalendar
                 key={`${next.marketId}:${next.dateIso}`}
                 date={next}
-                className="mt-5 lg:mt-1 lg:shrink-0"
+                className="mt-5 lg:col-start-2 lg:mt-1 lg:w-80"
                 link={false}
                 unregisteredLabel="開催予定"
               />
