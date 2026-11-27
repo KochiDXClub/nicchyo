@@ -44,33 +44,38 @@ export default function MarketCalendarView({ heading, dates, notice, monthCalend
 
   return (
     <>
-      <div className="bg-gradient-to-b from-nicchyo-soft-green/25 to-transparent pb-6 pt-safe-top">
+      <div className="bg-gradient-to-b from-nicchyo-soft-green/25 to-transparent pb-4 pt-safe-top lg:pb-5">
         <PageContainer width={wide ? "wide" : "narrow"} className="pt-6">
-          {heading}
+          {/* PC では見出しと次の開催を横に並べ、ヘッダの高さを抑えて一覧を早く見せる */}
+          <div className="lg:flex lg:items-end lg:justify-between lg:gap-10">
+            <div className="min-w-0">
+              {heading}
 
-          {options.length > 1 && (
-            <div role="group" aria-label="市で絞り込む" className="-mx-1 mt-4 flex flex-wrap gap-2 px-1">
-              <MarketChip label="すべて" selected={marketId === null} onClick={() => setMarketId(null)} />
-              {options.map((option) => (
-                <MarketChip
-                  key={option.id}
-                  label={option.name}
-                  selected={marketId === option.id}
-                  onClick={() => setMarketId(option.id)}
-                />
-              ))}
+              {options.length > 1 && (
+                <div role="group" aria-label="市で絞り込む" className="-mx-1 mt-4 flex flex-wrap gap-2 px-1">
+                  <MarketChip label="すべて" selected={marketId === null} onClick={() => setMarketId(null)} />
+                  {options.map((option) => (
+                    <MarketChip
+                      key={option.id}
+                      label={option.name}
+                      selected={marketId === option.id}
+                      onClick={() => setMarketId(option.id)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-          )}
 
-          {next && (
-            <MarketStatusCalendar
-              key={`${next.marketId}:${next.dateIso}`}
-              date={next}
-              className="mt-5"
-              link={false}
-              unregisteredLabel="開催予定"
-            />
-          )}
+            {next && (
+              <MarketStatusCalendar
+                key={`${next.marketId}:${next.dateIso}`}
+                date={next}
+                className="mt-5 lg:mt-0 lg:shrink-0"
+                link={false}
+                unregisteredLabel="開催予定"
+              />
+            )}
+          </div>
           {notice}
         </PageContainer>
       </div>
