@@ -18,8 +18,6 @@ import {
 } from "./types";
 import { NEW_VENDOR_ID_PREFIX } from "../../map/types/editableShop";
 import type { MapSettingsLimits } from "./useMapEditData";
-import type { JudgeChome } from "./useChomeJudge";
-import { legacyChomeLabel } from "@/lib/map/chomes";
 
 let operationIdCounter = 0;
 
@@ -40,8 +38,6 @@ type Params = {
   setVendors: React.Dispatch<React.SetStateAction<EditableVendor[]>>;
   routeConfig: MapRouteConfig;
   mapSettingsLimits: MapSettingsLimits;
-  /** 道の上の位置から丁目を決める（境目の設定が無いあいだは常に「対象外」を返す） */
-  judgeChome?: JudgeChome;
   setMessage: (message: string | null) => void;
 };
 
@@ -71,7 +67,6 @@ export function useMapEditOperations(params: Params) {
     setVendors,
     routeConfig,
     mapSettingsLimits,
-    judgeChome,
     setMessage,
   } = params;
 
@@ -383,6 +378,7 @@ export function useMapEditOperations(params: Params) {
     [shops, commit, setMessage, takeFreePosition]
   );
 
+  /** 区画の住所番号を直す（同じ住所の区画があれば止める） */
   const setSlotAddress = useCallback((locationId: string, address: { main: number; branch: number | null } | null) => {
     const shop = shops.find((item) => item.locationId === locationId);
     if (!shop) return false;
@@ -394,29 +390,19 @@ export function useMapEditOperations(params: Params) {
     return true;
   }, [shops, commit, setMessage]);
 
+  /** 区画の丁目を手で設定する。空欄は未設定。丁目は区画ごとに設定し、道の位置からは決めない */
   const setSlotChome = useCallback(
-    /** value は市の丁目の名前（market_areas.label）。"auto" は自動判定に戻す */
-    (locationId: string, value: string | "auto") => {
+    (locationId: string, value: string) => {
       const shop = shops.find((s) => s.locationId === locationId);
       if (!shop) return;
-      if (value === "auto") {
-        const judged = shop.roadId && shop.roadDistanceM != null ? judgeChome?.(shop.roadId, shop.roadDistanceM) : undefined;
-        const chome = judged?.status === "ok" ? legacyChomeLabel(judged.chomeId) : shop.chome;
-        commit(
-          { shops: shops.map((s) => (s.locationId === locationId ? { ...s, chome, chomeLocked: false } : s)) },
-          String(shop.position),
-          `丁目を自動判定に戻す（${chome ?? "未設定"}）`
-        );
-        return;
-      }
-      const chome = value;
+      const chome = value || undefined;
       commit(
-        { shops: shops.map((s) => (s.locationId === locationId ? { ...s, chome, chomeLocked: true } : s)) },
+        { shops: shops.map((s) => (s.locationId === locationId ? { ...s, chome, chomeLocked: chome ? true : false } : s)) },
         String(shop.position),
-        `丁目を ${chome} に設定（手動）`
+        `丁目を ${chome ?? "未設定"} に設定`
       );
     },
-    [shops, commit, judgeChome]
+    [shops, commit]
   );
 
   /** CSV 取り込みの結果（storeCsvImport.ts の planStoreImport）を1件の操作として当てはめる */

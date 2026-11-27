@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { ShopPreview } from "@/components/admin/ShopPreview";
 import { formatMarketAddress, parseMarketAddress } from "@/lib/market-schedule/address";
 import { slotLabel } from "../../../map/types/editableShop";
-import type { ChomeJudgement } from "@/lib/map/chomeBoundaries";
-import { getChome, normalizeChomeId } from "@/lib/map/chomes";
 import { EDITOR_COLORS } from "../editorTheme";
 import type { EditableShop, EditableVendor } from "../types";
 import {
@@ -17,18 +15,6 @@ import {
   noteStyle,
   panelWrap,
 } from "./panelStyles";
-
-/** 自動判定の結果を、パネルに出す一文にする */
-export function describeChomeJudgement(judged: ChomeJudgement | null): string {
-  if (!judged) return "";
-  if (judged.status === "ok") return `自動判定: ${getChome(judged.chomeId)?.name ?? ""}`;
-  if (judged.status === "near_boundary") {
-    const names = judged.candidates.map((id) => `${id}丁目`).join("・");
-    return `境目のすぐ上にあるため、自動では決められません${names ? `（候補: ${names}）` : ""}`;
-  }
-  if (judged.status === "ambiguous") return "丁目の区間が重なっていて、自動では決められません（設定の誤り）";
-  return "自動判定の対象外です（丁目の区間に入っていません）";
-}
 
 /**
  * 区画を選んだときの右パネル。区画は出店者の id だけを持ち、出店者の情報は別に保存する。
@@ -44,7 +30,6 @@ export default function SlotVendorPanel({
   onChomeChange,
   chomeLabels = [],
   marketName,
-  autoChome,
   onDelete,
 }: {
   shop: EditableShop;
@@ -56,18 +41,16 @@ export default function SlotVendorPanel({
   vendor: EditableVendor | null;
   onApplyFieldObservation?: () => void;
   onAddressChange?: (address: { main: number; branch: number | null } | null) => void;
-  /** 丁目を選ぶ（手で設定）／"auto" で自動判定に戻す */
-  onChomeChange: (value: string | "auto") => void;
+  /** 丁目を選ぶ（空欄は未設定） */
+  onChomeChange: (value: string) => void;
   /** この区画の市の丁目の名前（市の管理画面で登録したもの）。選択肢になる */
   chomeLabels?: readonly string[];
   /** この区画の市の名前（丁目の見出しに使う） */
   marketName?: string;
-  /** この区画の位置からの自動判定の結果（道の位置が無い区画は null） */
-  autoChome: ChomeJudgement | null;
   onDelete: () => void;
 }) {
-  // 手で設定された丁目が市の登録から外れていても、その値を選択肢に残す（黙って別の丁目に変わらないように）
-  const chomeOptions = shop.chomeLocked && shop.chome && !chomeLabels.includes(shop.chome)
+  // 今の丁目が市の登録から外れていても、その値を選択肢に残す（黙って別の丁目に変わらないように）
+  const chomeOptions = shop.chome && !chomeLabels.includes(shop.chome)
     ? [...chomeLabels, shop.chome]
     : [...chomeLabels];
   const [previewVendor, setPreviewVendor] = useState<string | null>(null);
@@ -116,11 +99,11 @@ export default function SlotVendorPanel({
         <span style={label}>{marketName ?? "この市"}の丁目</span>
         <select
           aria-label={`${marketName ?? "この市"}の丁目`}
-          value={shop.chomeLocked && shop.chome ? shop.chome : "auto"}
-          onChange={(e) => onChomeChange(e.target.value === "auto" ? "auto" : e.target.value)}
-          style={{ ...inputStyle, marginBottom: 4 }}
+          value={shop.chome ?? ""}
+          onChange={(e) => onChomeChange(e.target.value)}
+          style={{ ...inputStyle, marginBottom: 12 }}
         >
-          <option value="auto">自動（道の位置から決める）</option>
+          <option value="">未設定</option>
           {chomeOptions.map((name) => (
             <option key={name} value={name}>
               {name}
@@ -128,21 +111,6 @@ export default function SlotVendorPanel({
           ))}
         </select>
       </label>
-      <p style={{ ...noteStyle, marginBottom: 12 }}>
-        いまの丁目: {shop.chome ?? "未設定"}
-        {shop.chomeLocked ? "（手で設定）" : ""}
-        {autoChome && <><br />{describeChomeJudgement(autoChome)}</>}
-        {!shop.chomeLocked && autoChome?.status === "ok" && normalizeChomeId(shop.chome) !== autoChome.chomeId && (
-          <><br />今の丁目と自動判定が違います。</>
-        )}
-      </p>
-      {/* 「自動」は、手で設定していない区画では選び直しても変わらず（同じ値の選択は onChange が呼ばれない）、
-          今の丁目と自動判定がずれた既存の区画を直せないので、ボタンで直接直せるようにする */}
-      {!shop.chomeLocked && autoChome?.status === "ok" && normalizeChomeId(shop.chome) !== autoChome.chomeId && (
-        <button type="button" onClick={() => onChomeChange("auto")} style={{ ...buttonStyle, marginBottom: 12 }}>
-          自動判定の値（{getChome(autoChome.chomeId)?.shortName}）にする
-        </button>
-      )}
 
       {(shop.placeName || shop.placeVendors?.length) ? <div style={{ ...noteStyle, marginBottom: 12 }}>
         {shop.placeName && <p>出店場所: {shop.placeName}</p>}

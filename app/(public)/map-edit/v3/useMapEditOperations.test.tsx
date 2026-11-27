@@ -4,7 +4,6 @@ import { useState } from "react";
 import { DEFAULT_MAP_ROUTE_CONFIG } from "../../map/types/mapRoute";
 import { EMPTY_HISTORY, type EditHistory } from "./editHistory";
 import { useMapEditOperations } from "./useMapEditOperations";
-import type { JudgeChome } from "./useChomeJudge";
 import type { EditableLandmark, EditableRoad, EditableShop, EditableVendor } from "./types";
 
 const road: EditableRoad = {
@@ -37,7 +36,6 @@ function setup(
   initialShops: EditableShop[],
   maxUnassigned = 300,
   initialVendors: EditableVendor[] = [],
-  judgeChome?: JudgeChome
 ) {
   const setMessage = vi.fn();
   const hook = renderHook(() => {
@@ -59,7 +57,6 @@ function setup(
       setVendors,
       routeConfig: DEFAULT_MAP_ROUTE_CONFIG,
       mapSettingsLimits: { maxLandmarks: 80, maxUnassignedShopMarkers: maxUnassigned },
-      judgeChome,
       setMessage,
     });
     return { ops, shops, vendors, history };
@@ -235,18 +232,10 @@ describe("useMapEditOperations.setSlotChome", () => {
     expect(hook.result.current.shops[0].chomeLocked).toBeUndefined();
   });
 
-  it("「自動」に戻すと手動設定を外し、道の位置から決め直す（保存で false を送る）", () => {
-    const judge: JudgeChome = () => ({ status: "ok", chomeId: 5 });
-    const { hook } = setup([slot(1, 5, { chome: "二丁目", chomeLocked: true })], 300, [], judge);
-    act(() => hook.result.current.ops.setSlotChome("loc-1", "auto"));
-    expect(hook.result.current.shops[0]).toMatchObject({ chome: "五丁目", chomeLocked: false });
-  });
-
-  it("「自動」でも判定できなければ、今の丁目を残して手動設定だけ外す", () => {
-    const judge: JudgeChome = () => ({ status: "near_boundary", chomeId: null, candidates: [1, 2] });
-    const { hook } = setup([slot(1, 5, { chome: "二丁目", chomeLocked: true })], 300, [], judge);
-    act(() => hook.result.current.ops.setSlotChome("loc-1", "auto"));
-    expect(hook.result.current.shops[0]).toMatchObject({ chome: "二丁目", chomeLocked: false });
+  it("空欄にすると丁目は未設定に戻る", () => {
+    const { hook } = setup([slot(1, 5, { chome: "二丁目", chomeLocked: true })]);
+    act(() => hook.result.current.ops.setSlotChome("loc-1", ""));
+    expect(hook.result.current.shops[0].chome).toBeUndefined();
   });
 });
 
