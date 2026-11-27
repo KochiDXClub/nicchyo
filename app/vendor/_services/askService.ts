@@ -3,15 +3,8 @@ import { createClient } from "@/utils/supabase/client";
 import { imageUploadInfo, resizeImageToBlob, STORE_IMAGE_CONFIG } from "@/lib/image/clientCompression";
 import { normalizeShopImageKind } from "@/lib/shopImages";
 import { recropStoreThumbnail, uploadStoreImage } from "./storeService";
-import type { AskAnswer, SeasonKey, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
+import { SEASON_ID_BY_KEY, type AskAnswer, type SeasonKey, type VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 
-/** product_seasons.season_id（0〜3）と旬のキーの対応 */
-const SEASON_ID_BY_KEY: Record<SeasonKey, number> = {
-  spring_summer: 0,
-  summer_autumn: 1,
-  autumn_winter: 2,
-  winter_spring: 3,
-};
 const SEASON_KEY_BY_ID: Record<number, SeasonKey> = Object.fromEntries(
   Object.entries(SEASON_ID_BY_KEY).map(([key, id]) => [id, key as SeasonKey])
 );
@@ -470,7 +463,11 @@ async function saveProducts(supabase: SupabaseClient, vendorId: string, items: P
   }
 }
 
-/** 1商品の旬を置き換える（行が無いときは、旬があるときだけ行を作る） */
+/**
+ * 1商品の旬を置き換える（行が無いときは、旬があるときだけ行を作る）。
+ * product_seasons は出店者の権限で直接書けない（RLS に書き込みのポリシーが無い）ので、
+ * 店舗の権限を確かめる API（/api/vendor/product-seasons）を通して書く。
+ */
 async function saveProductSeasons(
   supabase: SupabaseClient,
   vendorId: string,
@@ -478,15 +475,17 @@ async function saveProductSeasons(
   name: string,
   seasons: SeasonKey[]
 ): Promise<void> {
-  // 写真の保存で作った行は、この前に取った rows にはないので、もう一度探す
+  // 写真の保存で作った行は、この前に取った rows にはないので、もう一度探す。
+  // 同じ名前の行が重なっていても止まらないよう、1件だけ取る
   const { data: found, error: findError } = await supabase
     .from("products")
     .select("id")
     .eq("vendor_id", vendorId)
     .eq("name", name)
-    .maybeSingle();
+    .order("id")
+    .limit(1);
   if (findError) throw findError;
-  let productId = (found?.id as string | undefined) ?? rows.find((row) => row.name === name)?.id;
+  let productId = ((found ?? [])[0] as { id: string } | undefined)?.id ?? rows.find((row) => row.name === name)?.id;
   if (!productId) {
     if (seasons.length === 0) return;
     const { data, error } = await supabase
@@ -498,13 +497,15 @@ async function saveProductSeasons(
     productId = data.id as string;
   }
 
-  const { error: deleteError } = await supabase.from("product_seasons").delete().eq("product_id", productId);
-  if (deleteError) throw deleteError;
-  if (seasons.length === 0) return;
-  const { error: insertError } = await supabase.from("product_seasons").insert(
-    seasons.map((season) => ({ product_id: productId, season_id: SEASON_ID_BY_KEY[season] }))
-  );
-  if (insertError) throw insertError;
+  const response = await fetch("/api/vendor/product-seasons", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ productId, seasons }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new AskUserFacingError(body?.error ?? "旬を保存できませんでした。");
+  }
 }
 
 /** 1つの質問の回答を保存する。weekDate は「今週」の日曜（YYYY-MM-DD） */

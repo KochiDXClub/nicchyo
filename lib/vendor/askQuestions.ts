@@ -31,6 +31,14 @@ export const SEASON_OPTIONS: { key: SeasonKey; label: string }[] = [
   { key: "winter_spring", label: "冬ー春" },
 ];
 
+/** product_seasons.season_id（0〜3）と旬のキーの対応 */
+export const SEASON_ID_BY_KEY: Record<SeasonKey, number> = {
+  spring_summer: 0,
+  summer_autumn: 1,
+  autumn_winter: 2,
+  winter_spring: 3,
+};
+
 export type AskQuestionId =
   | "weekly-products"
   | "hours"
