@@ -1,14 +1,9 @@
-"use client";
-
-import { useAuth } from "@/lib/auth/AuthContext";
-import VendorAskSession from "./VendorAskSession";
+import { redirect } from "next/navigation";
 
 /**
- * にちよさんの質問に答えるページ。出店者トップの吹き出し（「！」）から来る。
- * ログインと出店者ロールの確認は my-shop のレイアウト（と proxy）が行う。
+ * 質問に答えるページ（/my-shop/ask）は、店舗の編集（/vendor/store）に一本化した。
+ * 出店者トップの吹き出しからの道は残すので、そこから「続きを答える」を開いた状態で送る。
  */
-export default function VendorAskPage() {
-  const { user } = useAuth();
-  if (!user?.vendorId) return null;
-  return <VendorAskSession vendorId={user.vendorId} />;
+export default function VendorAskRedirectPage() {
+  redirect("/vendor/store?continue=1");
 }

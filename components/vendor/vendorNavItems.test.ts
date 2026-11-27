@@ -13,7 +13,6 @@ describe("requiredPermissionForPath", () => {
   it("導線のないマイ店舗の店舗情報まわりの画面は store_edit", () => {
     expect(requiredPermissionForPath("/my-shop/schedule")).toBe("store_edit");
     expect(requiredPermissionForPath("/vendor/store")).toBe("store_edit");
-    expect(requiredPermissionForPath("/my-shop/ask")).toBe("store_edit");
   });
 
   it("権限の要らない画面（ホーム・使い方・メンバー管理・アカウント設定）や、名前が似ているだけの画面は undefined", () => {

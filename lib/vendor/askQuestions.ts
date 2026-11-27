@@ -11,7 +11,7 @@ import type { ShopImageKind } from "@/lib/shopImages";
  *
  * 使われ方は2つある。
  * - 出店者トップ（/my-shop）: 入力が要る質問の数を「質問が◯つ」で知らせ、
- *   質問ページ（/my-shop/ask）で順に聞く（pendingQuestions）
+ *   店舗の編集（/vendor/store）の「続きを答える」で順に聞く（pendingQuestions）
  * - 店舗情報の編集（/vendor/store）: すべての質問を一覧にして、いつでも答え直せる
  *
  * tier は、トップで聞く順番を決める（weekly → urgent → maniac）。
