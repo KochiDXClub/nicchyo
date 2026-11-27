@@ -61,7 +61,8 @@ export default function IntentionPointMap({ points, selectedId, activeChome, onS
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-label={label} className="block h-auto w-full rounded-btn bg-nicchyo-base ring-1 ring-nicchyo-ink/15">
       {located.map((point) => {
         const { x, y } = project(point.lat, point.lng);
-        const chomeColor = CHOMES.find((chome) => chome.id === point.chome)?.color ?? "#A0D7A7";
+        // 丁目の色（lib/map/chomes）。丁目が分からない点は、トークンの淡い緑で出す
+        const chomeColor = CHOMES.find((chome) => chome.id === point.chome)?.color ?? null;
         const selectable = onSelect !== undefined && (activeChome === null || point.chome === activeChome);
         const selected = point.id === selectedId;
         // 運営の集計では件数で点を大きくする（件数が無いときは標準の大きさ）
@@ -73,14 +74,13 @@ export default function IntentionPointMap({ points, selectedId, activeChome, onS
               cx={x}
               cy={y}
               r={selected ? radius + 2 : radius}
-              fill={chomeColor}
-              stroke={selected ? "#3A3A3A" : "#ffffff"}
+              className={`${chomeColor ? "" : "fill-nicchyo-soft-green"} ${selected ? "stroke-nicchyo-ink" : "stroke-nicchyo-base"}`}
               strokeWidth={selected ? 3 : 1.5}
               role={selectable ? "button" : undefined}
               tabIndex={selectable ? 0 : undefined}
               aria-label={point.label}
               aria-pressed={selectable ? selected : undefined}
-              style={{ cursor: selectable ? "pointer" : "default" }}
+              style={{ fill: chomeColor ?? undefined, cursor: selectable ? "pointer" : "default" }}
               onClick={selectable ? () => onSelect?.(point) : undefined}
               onKeyDown={
                 selectable
