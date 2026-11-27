@@ -4,7 +4,9 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/adminClient";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { todayJstString } from "@/lib/time/jstDate";
+import { summariseIntentions, type IntentionSummary, type IntentionSummaryRow } from "./intentionSummary";
 import {
   INTENTION_PLACE_COLUMNS,
   INTENTION_RESPONSE_COLUMNS,
@@ -105,9 +107,39 @@ export async function readVendorCurrentPlaceId(db: SupabaseClient, vendorId: str
   return (membership as { location_id: string } | null)?.location_id ?? null;
 }
 
-/** 場所が存在するか（保存の前に確かめて、存在しない場所を 400 で返す） */
-export async function intentionPlaceExists(db: SupabaseClient, placeId: string): Promise<boolean> {
-  const { data, error } = await db.from("market_locations").select("id").eq("id", placeId).maybeSingle();
+/** 場所を1件読む（丁目の確かめにも使う）。無ければ null */
+export async function findIntentionPlace(db: SupabaseClient, placeId: string): Promise<IntentionPlace | null> {
+  const { data, error } = await db
+    .from("market_locations")
+    .select(INTENTION_PLACE_COLUMNS)
+    .eq("id", placeId)
+    .maybeSingle();
   if (error) throw error;
-  return data !== null;
+  return data ? rowToIntentionPlace(data as IntentionPlaceRow) : null;
+}
+
+/**
+ * 季節の集計を読む。運営（mask: false）と市役所（mask: true）で同じ読み方を使う。
+ * 回答は丁目と場所の2つだけを読み、店舗ごとの情報は返さない。
+ */
+export async function loadIntentionSummary(
+  db: SupabaseClient,
+  seasonYear: number,
+  options: { mask: boolean },
+): Promise<IntentionSummary> {
+  // PostgREST の既定の上限（1,000 件）で切れると集計が狂うので、全件をページングして読む
+  const result = await fetchAllRows<IntentionSummaryRow>(
+    (from, to) =>
+      db
+        .from("vendor_intention_responses")
+        .select("vendor_id, chome, place_id")
+        .eq("season_year", seasonYear)
+        .order("vendor_id", { ascending: true })
+        .range(from, to) as unknown as PromiseLike<{ data: IntentionSummaryRow[] | null; error: { message: string } | null }>,
+    { label: "vendor_intention_responses" },
+  );
+  if (result.error || result.truncated) throw new Error("vendor_intention_responses の読み込みに失敗");
+
+  const places = await listIntentionPlaces(db);
+  return summariseIntentions(result.data, places, { mask: options.mask });
 }

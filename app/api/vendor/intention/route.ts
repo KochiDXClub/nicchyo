@@ -4,14 +4,14 @@ import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { requireVendorContext } from "@/lib/vendor/shopContext.server";
 import {
   INTENTION_RESPONSE_COLUMNS,
-  IntentionPlaceInputSchema,
+  IntentionChomeInputSchema,
   rowToIntentionResponse,
   type IntentionResponseRow,
 } from "@/lib/vendor/intention";
 import {
+  findIntentionPlace,
   findOpenIntentionSeason,
   intentionDb,
-  intentionPlaceExists,
   listIntentionPlaces,
   readOwnIntentionResponse,
   readVendorCurrentPlaceId,
@@ -45,7 +45,10 @@ export async function GET() {
   }
 }
 
-/** PUT: 受付中の調査に、自分の店舗の出店したい場所を書く（何度でも書き直せる） */
+/**
+ * PUT: 受付中の調査に、自分の店舗の出店したい丁目を書く（何度でも書き直せる）。
+ * 場所は任意。入れるときは、選んだ丁目の場所にする。
+ */
 export async function PUT(request: Request) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
@@ -64,7 +67,7 @@ export async function PUT(request: Request) {
   const db = intentionDb();
   if (!db) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  const parsed = IntentionPlaceInputSchema.safeParse(await request.json().catch(() => null));
+  const parsed = IntentionChomeInputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "入力を確かめてください" }, { status: 400 });
   }
@@ -73,8 +76,13 @@ export async function PUT(request: Request) {
     const season = await findOpenIntentionSeason(db);
     if (!season) return NextResponse.json({ error: "受付期間外のため、回答できません" }, { status: 409 });
 
-    if (!(await intentionPlaceExists(db, parsed.data.placeId))) {
-      return NextResponse.json({ error: "出店したい場所を選び直してください" }, { status: 400 });
+    const placeId = parsed.data.placeId ?? null;
+    if (placeId) {
+      const place = await findIntentionPlace(db, placeId);
+      // 場所は、選んだ丁目の場所だけ許す（丁目と場所がずれた回答を防ぐ）
+      if (!place || place.chome !== parsed.data.chome) {
+        return NextResponse.json({ error: "出店したい場所を選び直してください" }, { status: 400 });
+      }
     }
 
     const { data, error } = await db
@@ -84,7 +92,8 @@ export async function PUT(request: Request) {
           season_year: season.seasonYear,
           // 店舗は所属から決める（本文の値は使わない）
           vendor_id: auth.vendorId,
-          place_id: parsed.data.placeId,
+          chome: parsed.data.chome,
+          place_id: placeId,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "season_year,vendor_id" },

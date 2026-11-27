@@ -64,6 +64,14 @@ export function CityVendorIntention() {
             {state.summary.respondents === null ? "少数のため非表示" : `${state.summary.respondents}店`}
           </p>
           <ul className="divide-y divide-line">
+            {state.summary.chomes.map((cell) => (
+              <li key={cell.chome} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="text-nicchyo-ink">{cell.name}</span>
+                <span className="font-bold text-nicchyo-ink">{countText(cell.count)}</span>
+              </li>
+            ))}
+          </ul>
+          <ul className="divide-y divide-line">
             {state.summary.places.map((cell) => (
               <li key={cell.placeId} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <span className="text-nicchyo-ink">

@@ -10,10 +10,15 @@ const places = [
 ];
 
 vi.mock("@/lib/auth/requireCityApi", () => ({ requireCityApi: () => requireCityApi() }));
-vi.mock("@/lib/vendor/intention.server", () => ({
-  findLatestIntentionSeason: () => findLatestIntentionSeason(),
-  listIntentionPlaces: async () => places,
-}));
+vi.mock("@/lib/vendor/intention.server", async () => {
+  const { summariseIntentions } = await import("@/lib/vendor/intentionSummary");
+  return {
+    findLatestIntentionSeason: () => findLatestIntentionSeason(),
+    // 本物の集計（伏せ方の規則）を通す。読み込みはテストの回答の配列を使う
+    loadIntentionSummary: async (_db: unknown, _year: number, options: { mask: boolean }) =>
+      summariseIntentions(responses as never, places as never, options),
+  };
+});
 
 /** 季節の行と回答の行を返す、最小のクエリの代わり */
 function fakeDb() {

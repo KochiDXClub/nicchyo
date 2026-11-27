@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireCityApi } from "@/lib/auth/requireCityApi";
-import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { rowToIntentionSeason, type IntentionSeasonRow, INTENTION_SEASON_COLUMNS } from "@/lib/vendor/intention";
-import { findLatestIntentionSeason, listIntentionPlaces } from "@/lib/vendor/intention.server";
-import { summariseIntentions, type IntentionSummaryRow } from "@/lib/vendor/intentionSummary";
+import { findLatestIntentionSeason, loadIntentionSummary } from "@/lib/vendor/intention.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,21 +38,8 @@ export async function GET(request: Request) {
     }
     if (!season) return NextResponse.json({ season: null, summary: null });
 
-    // PostgREST の既定の上限（1,000 件）で切れると集計が狂うので、全件をページングして読む
-    const result = await fetchAllRows<IntentionSummaryRow>(
-      (from, to) =>
-        db
-          .from("vendor_intention_responses")
-          .select("vendor_id, place_id")
-          .eq("season_year", season.seasonYear)
-          .order("vendor_id", { ascending: true })
-          .range(from, to) as unknown as PromiseLike<{ data: IntentionSummaryRow[] | null; error: { message: string } | null }>,
-      { label: "vendor_intention_responses" },
-    );
-    if (result.error || result.truncated) throw new Error("vendor_intention_responses の読み込みに失敗");
-
-    const places = await listIntentionPlaces(db);
-    const summary = summariseIntentions(result.data, places);
+    // 市役所には件数（丁目・場所ごと）だけを返す。少数の項目は伏せる（mask: true）
+    const summary = await loadIntentionSummary(db, season.seasonYear, { mask: true });
     return NextResponse.json({ season, summary });
   } catch {
     return NextResponse.json({ error: "読み込めませんでした" }, { status: 500 });
