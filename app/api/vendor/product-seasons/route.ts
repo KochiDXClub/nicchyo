@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { requireVendorContext } from "@/lib/vendor/shopContext.server";
+import { createAdminClient } from "@/lib/supabase/adminClient";
 import { SEASON_ID_BY_KEY, SEASON_OPTIONS } from "@/lib/vendor/askQuestions";
 
 // 商品ごとの旬（product_seasons）を保存する。
@@ -37,12 +37,10 @@ export async function POST(request: Request) {
     }
     const { productId, seasons } = parsed.data;
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceRoleKey) {
+    const admin = createAdminClient();
+    if (!admin) {
       return NextResponse.json({ error: "旬を保存できませんでした。" }, { status: 500 });
     }
-    const admin = createServiceClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
     // 自店の商品かどうかを先に確かめる（他店の商品なら 404 として扱う）
     const { data: product, error: productError } = await admin
