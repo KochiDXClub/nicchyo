@@ -4,7 +4,7 @@ import { CHOMES, normalizeChomeId, type ChomeId } from "@/lib/map/chomes";
 /**
  * 出店意向調査（来季、出店したい場所）。
  * 保存先は vendor_intention_seasons / vendor_intention_responses
- * （supabase/migrations/20261124100000_create_vendor_intention_surveys.sql、その後の 20261124110000・20261124120000）。
+ * （supabase/migrations/20261124100000_create_vendor_intention_surveys.sql、その後の 20261124110000・20261127130000）。
  *
  * 出店者は、まず丁目（1〜7）を選ぶ。そのあと、丁目の中の場所（地図の点＝区画）を選べる。
  * 丁目だけでも回答できる（場所は任意）。

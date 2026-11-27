@@ -53,7 +53,8 @@ export default function VendorIntentionPage() {
       .then((data) => {
         if (cancelled) return;
         // 回答済みならその丁目・場所。まだなら今出店している場所の丁目と場所を初期選択にする（あとから自由に選び直せる）
-        const initialPlaceId = data.response?.placeId ?? data.currentPlaceId ?? null;
+        // 回答があれば、その場所（丁目だけの回答なら null のまま）。回答がまだ無いときだけ今の場所にする
+        const initialPlaceId = data.response ? data.response.placeId : (data.currentPlaceId ?? null);
         const initialChome = data.response?.chome ?? chomeOfPlace(data.places, initialPlaceId);
         setPlaceId(initialPlaceId);
         setChome(initialChome);

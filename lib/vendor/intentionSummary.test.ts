@@ -71,6 +71,12 @@ describe("summariseIntentions", () => {
     expect(INTENTION_MIN_REPORTABLE).toBe(3);
   });
 
+  it("場所を伏せた丁目は、丁目の合計も伏せる（合計から伏せた場所を引き算で出させない）", () => {
+    // p3（丁目2）は2件で伏せる。丁目2の合計は、伏せた場所の件数を含むので伏せる
+    const summary = summariseIntentions(rowsFor({ p1: 6, p2: 4, p3: 2 }), places);
+    expect(chomeCount(summary, 2)).toBeNull();
+  });
+
   it("mask: false（運営の画面）は伏せずに件数を返す", () => {
     const summary = summariseIntentions(rowsFor({ p1: 2 }), places, { mask: false });
     expect(summary.respondents).toBe(2);

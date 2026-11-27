@@ -78,8 +78,12 @@ export function summariseIntentions(
 
   const chomeCounted = CHOMES.map((chome) => ({ key: String(chome.id), count: tallyChome.get(chome.id) ?? 0 }));
   const placeCounted = places.map((place) => ({ key: place.id, count: tallyPlace.get(place.id) ?? 0 }));
-  const hideChome = mask ? hiddenKeys(chomeCounted) : new Set<string>();
   const hidePlace = mask ? hiddenKeys(placeCounted) : new Set<string>();
+  // 丁目の合計から、伏せた場所の件数を引き算で出させない。場所を1つでも伏せた丁目は、丁目の合計も伏せる
+  const chomesWithHiddenPlace = places
+    .filter((place) => hidePlace.has(place.id) && place.chome !== null)
+    .map((place) => String(place.chome));
+  const hideChome = mask ? new Set([...hiddenKeys(chomeCounted), ...chomesWithHiddenPlace]) : new Set<string>();
   // 回答者が少なすぎるときは、全部を伏せる
   const tooFew = mask && respondentCount < INTENTION_MIN_REPORTABLE;
 
