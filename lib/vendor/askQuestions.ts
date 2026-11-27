@@ -38,6 +38,7 @@ export type AskQuestionId =
   | "shop-name"
   | "category"
   | "style"
+  | "introduction"
   | "owner"
   | "products"
   | "schedule"
@@ -98,6 +99,8 @@ export type VendorAskSnapshot = {
   /** 雨の日の質問に答えたか。rainPolicy の既定値（当日判断）のままとは区別する */
   rainAnswered: boolean;
   strength?: string;
+  /** お店の紹介文（出店者が書く平文、200字まで）。店舗バナーの商品の上に出す */
+  introduction?: string;
   motivation?: string;
   yearsRunning?: number | null;
   sundayLove?: string;
@@ -298,6 +301,15 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
     },
   },
   {
+    id: "introduction",
+    tier: "profile",
+    text: "お店の紹介を書いてや！（来訪者が店の商品の上で読めるよ）",
+    input: "long-text",
+    placeholder: "（例）朝どれの野菜を並べちょります。",
+    isAnswered: (s) => filled(s.introduction),
+    summary: (s) => textOrNull(s.introduction),
+  },
+  {
     id: "owner",
     tier: "profile",
     text: "店主さんのお名前は？（出さんでもえいよ）",
@@ -346,7 +358,7 @@ export const ASK_GROUPS: readonly {
   title: string;
   ids: readonly AskQuestionId[];
 }[] = [
-  { key: "face", title: "お店の顔", ids: ["shop-photo", "shop-name", "category", "style", "owner"] },
+  { key: "face", title: "お店の顔", ids: ["shop-photo", "shop-name", "category", "style", "introduction", "owner"] },
   { key: "goods", title: "品ぞろえ", ids: ["weekly-products", "products", "signature", "signature-pr"] },
   { key: "market", title: "出店のこと", ids: ["hours", "schedule", "rain", "payment"] },
   { key: "link", title: "つながり", ids: ["instagram", "x", "website"] },
@@ -457,6 +469,7 @@ export type AskAnswer =
   | { id: "shop-name"; text: string }
   | { id: "category"; categoryId: string }
   | { id: "style"; tags: string[]; note: string }
+  | { id: "introduction"; text: string }
   | { id: "owner"; name: string; isPublic: boolean }
   // imageFile: 触っていなければ undefined（今の写真のまま）、外すなら null、選び直したなら新しい写真
   | { id: "products"; items: { name: string; price: number | null; imageFile?: File | null }[] }

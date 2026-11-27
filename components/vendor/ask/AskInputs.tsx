@@ -377,7 +377,7 @@ function YearsInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
   );
 }
 
-type LongTextId = "signature-pr" | "strength" | "motivation" | "sunday-love";
+type LongTextId = "signature-pr" | "strength" | "introduction" | "motivation" | "sunday-love";
 
 function LongTextInput({ snapshot, saving, onSubmit, onSkip, question }: InputProps) {
   const id = question.id as LongTextId;
@@ -385,6 +385,7 @@ function LongTextInput({ snapshot, saving, onSubmit, onSkip, question }: InputPr
     {
       "signature-pr": snapshot.signatureProduct?.description,
       strength: snapshot.strength,
+      introduction: snapshot.introduction,
       motivation: snapshot.motivation,
       "sunday-love": snapshot.sundayLove,
     }[id] ?? "";
@@ -408,7 +409,7 @@ function LongTextInput({ snapshot, saving, onSubmit, onSkip, question }: InputPr
         placeholder={question.placeholder}
         aria-label="こたえ"
         rows={4}
-        maxLength={300}
+        maxLength={id === "introduction" ? 200 : 300}
         className={cn(fieldClass, "resize-none leading-relaxed")}
       />
     </AskForm>

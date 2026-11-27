@@ -42,7 +42,7 @@ export async function fetchAskSnapshot(
     supabase
       .from("vendors")
       .select(
-        "shop_name, shop_image_url, shop_image_kind, category_id, style, style_tags, main_products, main_product_prices, schedule, sns_x, business_hours_start, business_hours_end, payment_methods, payment_note, sns_instagram, sns_hp, rain_policy, rain_note, rain_answered_at, signature_product_name, strength, motivation, years_running, sunday_love"
+        "shop_name, shop_image_url, shop_image_kind, category_id, style, style_tags, main_products, main_product_prices, schedule, sns_x, business_hours_start, business_hours_end, payment_methods, payment_note, sns_instagram, sns_hp, rain_policy, rain_note, rain_answered_at, signature_product_name, strength, introduction, motivation, years_running, sunday_love"
       )
       .eq("id", vendorId)
       .single(),
@@ -137,6 +137,7 @@ export async function fetchAskSnapshot(
       ((vendor.rain_policy as string | null) ?? "undecided") !== "undecided" ||
       !!(vendor.rain_note as string | null)?.trim(),
     strength: vendor.strength ?? undefined,
+    introduction: vendor.introduction ?? undefined,
     motivation: vendor.motivation ?? undefined,
     yearsRunning: vendor.years_running ?? null,
     sundayLove: vendor.sunday_love ?? undefined,
@@ -494,6 +495,9 @@ export async function saveAskAnswer(
         style_tags: answer.tags,
         style: answer.note.trim(),
       });
+    case "introduction":
+      // 200字は DB の check 制約と入力欄の maxLength の両方で守る
+      return updateVendor(supabase, vendorId, { introduction: orNull(answer.text) });
     case "owner": {
       // 店主名は専用テーブルへ。公開するかどうかも本人の設定として保存する
       const { error } = await supabase.from("vendor_owner_profiles").upsert(

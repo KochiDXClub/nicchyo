@@ -157,6 +157,7 @@ describe("答えの要約", () => {
       schedule: ["毎週日曜日"],
       snsX: "@yamada",
       strength: "あ",
+      introduction: "え",
       motivation: "い",
       yearsRunning: 0,
       sundayLove: "う",
