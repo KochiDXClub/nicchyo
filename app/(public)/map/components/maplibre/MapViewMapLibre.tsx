@@ -55,6 +55,7 @@ import {
   smoothRoutePath,
 } from "../../utils/mapRouteGeometry";
 import { getMarketMapGeometry, resolveMarketMapBounds } from "@/lib/map/marketMapGeometry";
+import { mapMarketColor } from "@/lib/market/markerColor";
 import { getRecommendedZoomBounds } from "../../config/roadConfig";
 import {
   ROAD_EDGE_WEIGHT_STOPS,
@@ -766,20 +767,20 @@ function MapViewMapLibre({
       const corridors: GeoJSON.Feature[] = [];
       const edgeLines: GeoJSON.Feature[] = [];
       const laneLines: GeoJSON.Feature[] = [];
-      const toPolygonFeature = (ring: Array<[number, number]>): GeoJSON.Feature => ({
+      const toPolygonFeature = (ring: Array<[number, number]>, properties: GeoJSON.GeoJsonProperties = {}): GeoJSON.Feature => ({
         type: "Feature",
-        properties: {},
+        properties,
         geometry: { type: "Polygon", coordinates: [[...ring, ring[0]].map(([lat, lng]) => [lng, lat])] },
       });
-      const toLineFeature = (line: Array<[number, number]>): GeoJSON.Feature => ({
+      const toLineFeature = (line: Array<[number, number]>, properties: GeoJSON.GeoJsonProperties = {}): GeoJSON.Feature => ({
         type: "Feature",
-        properties: {},
+        properties,
         geometry: { type: "LineString", coordinates: line.map(([lat, lng]) => [lng, lat]) },
       });
       // 市ごとに最も長い通りの中ほどへ名前を置く。
       const roadsById = new Map(mapRoute?.roads?.map((road) => [road.id, road]));
       const marketNames = new Map(mapRoute?.markets?.map((market) => [market.id, market.name]));
-      const marketLabels = new Map<string, { point: [number, number]; length: number }>();
+      const marketLabels = new Map<string, { point: [number, number]; length: number; textColor: string }>();
       // 先に全チェーンの形を作り、交差・分岐する他の道の面の内側では縁を引かない
       const built = chains
         .map((chain) => {
@@ -794,12 +795,14 @@ function MapViewMapLibre({
             : routeConfig.roadHalfWidthMeters;
           const polygon = buildRoadPolygon(smoothed, halfWidth);
           if (polygon.length < 3 || smoothed.length < 2) return null;
-          return { key: chain.key, smoothed, polygon, marketId, halfWidth };
+          // 市の色（日曜市は従来の緑。ほかの市は管理画面で設定した色）
+          const tintColor = mapMarketColor(marketId, mapRoute?.markets ?? [], sundayMarketId, ROAD_STYLE.overviewTintColor);
+          return { key: chain.key, smoothed, polygon, marketId, halfWidth, tintColor };
         })
         .filter((item): item is NonNullable<typeof item> => item !== null);
       for (const road of built) {
-        const { smoothed, polygon, halfWidth } = road;
-        polygons.push(toPolygonFeature(polygon));
+        const { smoothed, polygon, halfWidth, tintColor } = road;
+        polygons.push(toPolygonFeature(polygon, { tintColor }));
 
         const corridor = buildRoadPolygon(
           smoothed,
@@ -817,11 +820,13 @@ function MapViewMapLibre({
           }
         }
 
-        laneLines.push(toLineFeature(smoothed));
+        laneLines.push(toLineFeature(smoothed, { tintColor }));
         const id = road.marketId ?? sundayMarketId ?? "";
         if (smoothed.length > (marketLabels.get(id)?.length ?? 0)) {
           const mid = smoothed[Math.floor(smoothed.length / 2)];
-          marketLabels.set(id, { point: [mid[1], mid[0]], length: smoothed.length });
+          // 文字は日曜市だけ従来の濃い緑。ほかの市は市の色で書く
+          const isSunday = !road.marketId || road.marketId === sundayMarketId;
+          marketLabels.set(id, { point: [mid[1], mid[0]], length: smoothed.length, textColor: isSunday ? ROAD_STYLE.highlightLabelColor : tintColor });
         }
       }
       map.addSource(SRC_ROAD, { type: "geojson", data: { type: "FeatureCollection", features: polygons } });
@@ -870,7 +875,8 @@ function MapViewMapLibre({
         source: SRC_ROAD,
         maxzoom: OVERVIEW_MAX,
         paint: {
-          "fill-color": ROAD_STYLE.overviewTintColor,
+          // 市ごとの色（道のプロパティ tintColor。日曜市は overviewTintColor）
+          "fill-color": ["get", "tintColor"] as ExpressionSpecification,
           "fill-opacity": ROAD_STYLE.overviewTintOpacity,
         },
       });
@@ -906,7 +912,7 @@ function MapViewMapLibre({
         maxzoom: highlightFadeEnd,
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-          "line-color": ROAD_STYLE.overviewTintColor,
+          "line-color": ["get", "tintColor"] as ExpressionSpecification,
           "line-opacity": highlightOpacity,
           "line-width": ["interpolate", ["linear"], ["zoom"], 9, 5, highlightFadeStart, 12] as ExpressionSpecification,
         },
@@ -919,9 +925,9 @@ function MapViewMapLibre({
           type: "geojson",
           data: {
             type: "FeatureCollection",
-            features: [...marketLabels].map(([id, { point }]) => ({
+            features: [...marketLabels].map(([id, { point, textColor }]) => ({
               type: "Feature",
-              properties: { name: t(marketNames.get(id) ?? "日曜市") },
+              properties: { name: t(marketNames.get(id) ?? "日曜市"), textColor },
               geometry: { type: "Point", coordinates: point },
             })),
           },
@@ -945,7 +951,7 @@ function MapViewMapLibre({
             "text-ignore-placement": true,
           },
           paint: {
-            "text-color": ROAD_STYLE.highlightLabelColor,
+            "text-color": ["get", "textColor"] as ExpressionSpecification,
             "text-halo-color": ROAD_STYLE.highlightLabelHaloColor,
             "text-halo-width": 2,
             "text-opacity": [

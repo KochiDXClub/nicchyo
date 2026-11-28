@@ -5,13 +5,15 @@ export type PublicMarket = {
   slug: string;
   name: string;
   weekday: number;
+  /** 地図で、この市の道と縮小時の強調に使う色（#RRGGBB） */
+  markerColor?: string;
 };
 
 /** 公開中の市だけを読む。カレンダーでは取得失敗と公開中の市がゼロの状態を区別する。 */
 export async function readPublicMarkets(client: NonNullable<ReturnType<typeof createAnonClient>>): Promise<PublicMarket[]> {
   const { data, error } = await client
     .from("markets")
-    .select("id,slug,name,weekday")
+    .select("id,slug,name,weekday,markerColor:marker_color")
     .eq("is_public", true)
     .order("weekday", { ascending: true })
     .order("id");

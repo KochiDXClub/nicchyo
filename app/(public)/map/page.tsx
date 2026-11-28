@@ -141,7 +141,7 @@ export default async function MapPage({ searchParams }: {
         profiles={profiles}
         landmarks={landmarks}
         people={people}
-        mapRoute={{ ...mapRoute, markets: selection.markets.map(({ id, name }) => ({ id, name })) }}
+        mapRoute={{ ...mapRoute, markets: selection.markets.map(({ id, name, markerColor }) => ({ id, name, markerColor })) }}
         initialMarketId={selection.initial?.id}
         initialMarketCalendar={marketCalendar}
         sundayMarketId={selection.sunday?.id}
