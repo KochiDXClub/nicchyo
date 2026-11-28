@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import MarketMonthCalendar from "./MarketMonthCalendar";
-import type { MarketEvent } from "@/app/api/admin/events/route";
+import type { MarketEvent } from "@/lib/market/calendar";
 
 const event = {
   id: "e1",
@@ -16,7 +16,7 @@ const event = {
   image_url: null,
   highlight_dates: [],
   is_published: true,
-} as unknown as MarketEvent;
+} as MarketEvent;
 
 describe("MarketMonthCalendar", () => {
   beforeEach(() => {
@@ -47,6 +47,20 @@ describe("MarketMonthCalendar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "この日のカードを開く" }));
     expect(onOpenDay).toHaveBeenCalledWith("2026-12-06");
+  });
+
+  it("データの範囲外の日曜は開催と見せず、タップもできない", () => {
+    render(
+      <MarketMonthCalendar
+        events={[]}
+        days={[]}
+        knownRange={{ from: "2026-12-01", to: "2026-12-13" }}
+        onOpenDay={() => {}}
+      />
+    );
+    expect(screen.getByRole("button", { name: /12\/6（日）、開催/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /12\/20（日）/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "この日のカードを開く" })).toBeNull();
   });
 
   it("月を切り替えられる", () => {
